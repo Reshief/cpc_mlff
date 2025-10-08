@@ -197,9 +197,9 @@ def make_l0_contraction_fn(degrees, dtype=jnp.float32):
 
 
 def load_u_matrix():
-
-    stream = importlib.resources.path(__name__, 'u_matrix.pickle')
-    return pickle.load(stream)
+    my_resources = importlib.resources.files(__name__)
+    with my_resources.joinpath('u_matrix.pickle').open("rb") as stream:
+        return pickle.load(stream)
 
 
 def degrees_to_str(x):
