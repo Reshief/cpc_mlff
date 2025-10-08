@@ -31,6 +31,7 @@ dependencies = [
     "pyyaml",
     "pytest",
     "h5py",
+    "netcdf4>=1.7.2",
 ]
 keywords = [
     "machine learning",
