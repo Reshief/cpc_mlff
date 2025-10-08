@@ -4,7 +4,7 @@ import numpy as np
 
 import flax.linen as nn
 
-import pkg_resources
+import importlib.resources
 import pickle
 import itertools as it
 
@@ -12,11 +12,11 @@ from functools import partial
 from typing import (Callable, Sequence)
 
 
-indx_fn = lambda x: int((x+1)**2) if x >= 0 else 0
+def indx_fn(x): return int((x+1)**2) if x >= 0 else 0
 
 
 def load_cgmatrix():
-    stream = pkg_resources.resource_stream(__name__, 'cgmatrix.npz')
+    stream = importlib.resources.path(__name__, 'cgmatrix.npz')
     return np.load(stream)['cg']
 
 
@@ -115,10 +115,12 @@ def init_expansion_fn(degrees: Sequence[int], cg: jnp.ndarray) -> Callable[[jnp.
     segment_ids = jnp.array(
         [y for y in it.chain(*[[n] * int(2 * degrees[n] + 1) for n in range(len(degrees))])])
     num_segments = len(degrees)
-    _segment_sum = partial(jax.ops.segment_sum, segment_ids=segment_ids, num_segments=num_segments)
+    _segment_sum = partial(jax.ops.segment_sum,
+                           segment_ids=segment_ids, num_segments=num_segments)
     _v_segment_sum_l1 = jax.vmap(jax.vmap(jax.vmap(_segment_sum)))
     _v_segment_sum_l2 = jax.vmap(jax.vmap(_segment_sum))
-    _expansion_fn = jax.jit(lambda x: _v_segment_sum_l1(_v_segment_sum_l2(x * cg)))
+    _expansion_fn = jax.jit(
+        lambda x: _v_segment_sum_l1(_v_segment_sum_l2(x * cg)))
     return _expansion_fn
 
 
@@ -161,7 +163,8 @@ def init_expansion_fn(degrees: Sequence[int], cg: jnp.ndarray) -> Callable[[jnp.
 
 def make_l0_contraction_fn(degrees, dtype=jnp.float32):
     # get CG coefficients
-    cg = np.diagonal(init_clebsch_gordan_matrix(degrees=list({0, *degrees}), l_out_max=0), axis1=1, axis2=2)[0]
+    cg = np.diagonal(init_clebsch_gordan_matrix(
+        degrees=list({0, *degrees}), l_out_max=0), axis1=1, axis2=2)[0]
     # shape: (m_tot**2)
     # if 0 not in degrees:
     #     cg = cg[1:]  # remove degree zero if not in degrees
@@ -170,13 +173,15 @@ def make_l0_contraction_fn(degrees, dtype=jnp.float32):
     for d, r in zip(*np.unique(np.array(degrees), return_counts=True)):
         cg_rep += [np.tile(cg[indx_fn(d - 1): indx_fn(d)], r)]
 
-    cg_rep = np.concatenate(cg_rep)  # shape: (m_tot), m_tot = \sum_l 2l+1 for l in degrees
+    # shape: (m_tot), m_tot = \sum_l 2l+1 for l in degrees
+    cg_rep = np.concatenate(cg_rep)
     cg_rep = jnp.array(cg_rep, dtype=dtype)  # shape: (m_tot)
 
     segment_ids = jnp.array(
         [y for y in it.chain(*[[n] * int(2 * degrees[n] + 1) for n in range(len(degrees))])])
     num_segments = len(degrees)
-    _segment_sum = jax.vmap(partial(jax.ops.segment_sum, segment_ids=segment_ids, num_segments=num_segments))
+    _segment_sum = jax.vmap(partial(
+        jax.ops.segment_sum, segment_ids=segment_ids, num_segments=num_segments))
 
     def contraction_fn(sphc):
         """
@@ -185,14 +190,15 @@ def make_l0_contraction_fn(degrees, dtype=jnp.float32):
         Returns: Contraction on degree l=0 for each degree up to l_max, shape: (n,|l|)
         """
 
-        return _segment_sum(sphc*sphc*cg_rep[None, :])  # shape: (n,len(degrees))
+        # shape: (n,len(degrees))
+        return _segment_sum(sphc*sphc*cg_rep[None, :])
 
     return contraction_fn
 
 
 def load_u_matrix():
 
-    stream = pkg_resources.resource_stream(__name__, 'u_matrix.pickle')
+    stream = importlib.resources.path(__name__, 'u_matrix.pickle')
     return pickle.load(stream)
 
 
@@ -283,7 +289,8 @@ class ContractionToIrrep(nn.Module):
 
     def setup(self) -> None:
         if self.max_body_order < 2:
-            raise ValueError(f"Maximal body order has to be larger than 2. Body order is {self.max_body_order}.")
+            raise ValueError(
+                f"Maximal body order has to be larger than 2. Body order is {self.max_body_order}.")
 
         self.correlation = self.max_body_order - 2
         self.scalar_out = self.degree_out == 0
