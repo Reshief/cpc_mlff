@@ -22,6 +22,7 @@ dependencies = [
     "optax",
     "orbax-checkpoint == 0.5.23",
     "portpicker",
+    "importlib",
     # 'tensorflow',
     "scikit-learn",
     "ase",
@@ -47,10 +48,10 @@ classifiers = [
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["mlff"]
+where = ["."]
 
 [tool.setuptools.package-data]
-sph_ops = ["cgmatrix.npz", "u_matrix.pickle"]
+mlff = ["sph_ops/cgmatrix.npz", "sph_ops/u_matrix.pickle"]
 
 [project.optional-dependencies]
 gui = []
