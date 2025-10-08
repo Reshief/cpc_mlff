@@ -6,7 +6,7 @@ import numpy as np
 import os
 
 from flax import struct
-from typing import Dict, Callable
+from typing import Dict, Callable, Tuple
 
 from .potential.machine_learning_potential import MachineLearningPotential
 from .atoms import AtomsX
@@ -27,7 +27,7 @@ class GradientDescent:
                                learning_rate=learning_rate)
 
     @jax.jit
-    def step(self, atoms: AtomsX) -> (AtomsX, jnp.ndarray):
+    def step(self, atoms: AtomsX) -> Tuple[AtomsX, jnp.ndarray]:
         def energy_fn(y: AtomsX):
             graph = y.to_graph()
             return self.potential(graph).sum()
@@ -89,7 +89,7 @@ class LBFGS:
                      step_fn=take_step
                      )
 
-    def step(self, atoms: AtomsX) -> (AtomsX, jnp.ndarray):
+    def step(self, atoms: AtomsX) -> Tuple[AtomsX, jnp.ndarray]:
         pass
 
     def minimize(self, atoms: AtomsX, max_steps: int, tol: float = 1e-3):
@@ -151,7 +151,8 @@ class LBFGS:
 
 def _get_lbfgs_defaults():
     return {'linesearch': 'backtracking',
-            'condition': 'strong-wolfe',  # options are "armijo", "goldstein", "strong-wolfe" or "wolfe"
+            # options are "armijo", "goldstein", "strong-wolfe" or "wolfe"
+            'condition': 'strong-wolfe',
             'use_gamma': True,
             'max_stepsize': 0.2
             }
