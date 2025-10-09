@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -12,6 +13,7 @@ from mlff.data import DataTuple, DataSet
 from mlff.nn.stacknet import get_obs_and_force_fn, get_observable_fn, get_energy_force_stress_fn
 from mlff.nn import So3kratACE
 from mlff.properties import md17_property_keys as prop_keys
+from mlff.properties import property_names
 
 import mlff.properties.property_names as pn
 
@@ -21,10 +23,18 @@ save_path = 'ckpt_dir'
 ckpt_dir = os.path.join(save_path, 'module')
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
-E_key = prop_keys['energy']
-F_key = prop_keys['force']
+E_key = prop_keys[property_names.energy]
+F_key = prop_keys[property_names.force]
 
 data = dict(np.load(data_path))
+
+print(data.keys())
+
+for k in data:
+    print(k, "::", data[k].shape)
+
+sys.exit(0)
+
 
 # convert data to eV from kcal/mol used in MD17 data
 data[E_key] = data[E_key] * si.kcal / si.mol
@@ -108,7 +118,8 @@ h_opt = opt.__dict_repr__()
 h_coach = coach.__dict_repr__()
 h_dataset = data_set.__dict_repr__()
 h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
-save_dict(path=ckpt_dir, filename='hyperparameters.json', data=h, exists_ok=True)
+save_dict(path=ckpt_dir, filename='hyperparameters.json',
+          data=h, exists_ok=True)
 
 wandb.init(config=h)
 coach.run(train_state=train_state,

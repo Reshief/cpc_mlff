@@ -49,6 +49,8 @@ print("state:",
       dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_state]][:])
 print("state2:",
       dataset.variables['state2'][:])
+print("statecomb:",
+      dataset.variables['statecomb'][:])
 print("direction:",
       dataset.variables['direction'][:])
 print("sdiag:",
