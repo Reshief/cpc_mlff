@@ -12,7 +12,8 @@ from mlff.data import DataTuple, DataSet
 
 from mlff.nn.stacknet import get_obs_and_force_fn, get_observable_fn, get_energy_force_stress_fn
 from mlff.nn import So3krates
-from mlff.properties import md17_property_keys as prop_keys
+from mlff.properties import md17_property_keys as prop_keys, shnitsel_property_keys_static, shnitsel_property_keys_dynamic
+from mlff.properties import property_names
 
 import mlff.properties.property_names as pn
 from netCDF4 import Dataset
@@ -28,8 +29,8 @@ save_path = 'ckpt_dir'
 ckpt_dir = os.path.join(save_path, 'module')
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
-E_key = prop_keys['energy']
-F_key = prop_keys['force']
+E_key = prop_keys[property_names.energy]
+F_key = prop_keys[property_names.force]
 
 data_path = data_static_path
 data_path = data_dynamic_path
@@ -40,7 +41,21 @@ for var in dataset.variables:
 for var in dataset.dimensions:
     print(var, ">>", repr(dataset.dimensions[var]))
 
-print (dataset.variables.keys())
+print(dataset.variables.keys())
+
+print("type:",
+      dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_type]][:])
+print("state:",
+      dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_state]][:])
+print("state2:",
+      dataset.variables['state2'][:])
+print("direction:",
+      dataset.variables['direction'][:])
+print("sdiag:",
+      dataset.variables['sdiag'][:])
+
+
+'sdiag', 'astate', 'phases', 'nacs', 'from', 'to', 'state', 'state2', 'atom', 'direction', 'atNames', 'max_ts', 'completed', 'nsteps', 'time', 'trajid'
 
 sys.exit(0)
 

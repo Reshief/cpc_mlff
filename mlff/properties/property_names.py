@@ -11,6 +11,7 @@ atomic_energy = 'atomic_energy'
 
 atomic_position = 'atomic_position'
 atomic_type = 'atomic_type'
+atomic_state = 'atomic_state'
 
 total_charge = 'total_charge'
 total_spin = 'total_spin'
