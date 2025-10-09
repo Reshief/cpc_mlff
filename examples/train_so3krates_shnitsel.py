@@ -19,6 +19,9 @@ import mlff.properties.property_names as pn
 from netCDF4 import Dataset
 import sys
 
+import shnitsel as sh
+from shnitsel.core.parse.common import transform_atom_name_to_number
+
 port = portpicker.pick_unused_port()
 jax.distributed.initialize(f'localhost:{port}', num_processes=1, process_id=0)
 
@@ -45,6 +48,10 @@ print(dataset.variables.keys())
 
 print("type:",
       dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_type]][:])
+
+print("atom_number:",
+      transform_atom_name_to_number(dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_type]][:])[:])
+
 print("state:",
       dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_state]][:])
 print("state2:",
