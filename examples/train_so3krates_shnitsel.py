@@ -78,7 +78,7 @@ atom_idx_j = xr.DataArray([1, 0], dims=("pair_index",), name="idx_j").expand_dim
 )
 atom_idx_j = atom_idx_j.transpose("data", ...)
 node_mask = xr.DataArray(
-    np.ones((n_atoms)), dims=("atom",), name="nodes_mask"
+    np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
 ).expand_dims({"data": n_data})
 node_mask = node_mask.transpose("data", ...)
 
