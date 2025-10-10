@@ -9,15 +9,17 @@ import pickle
 import itertools as it
 
 from functools import partial
-from typing import (Callable, Sequence)
+from typing import Callable, Sequence
 
 
-def indx_fn(x): return int((x+1)**2) if x >= 0 else 0
+def indx_fn(x):
+    return int((x + 1) ** 2) if x >= 0 else 0
 
 
 def load_cgmatrix():
-    stream = importlib.resources.path(__name__, 'cgmatrix.npz')
-    return np.load(stream)['cg']
+    my_resources = importlib.resources.files(__name__)
+    with my_resources.joinpath("cgmatrix.npz").open("rb") as stream:
+        return np.load(stream, allow_pickle=True)["cg"]
 
 
 def init_clebsch_gordan_matrix(degrees, l_out_max=None):
