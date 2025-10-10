@@ -55,6 +55,7 @@ atom_type = dataset.variables[atom_type_key]
 atom_number = transform_atom_name_to_number(atom_type)
 
 n_data = dataset.sizes["data"]
+n_atoms = dataset.sizes["atom"]
 # print(n_data)
 
 positions = dataset.variables[prop_keys[property_names.atomic_position]]
@@ -68,9 +69,17 @@ dataset[F_key].assign_attrs(units="eV/m")
 atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
 atom_number_array = atom_number_array.transpose("data", ...)
 
-print(atom_number_array.dims)
+atom_idx_i = xr.DataArray([0,1], dims=("pair_index",), name="idx_i").expand_dims({"data": n_data})
+atom_idx_i = atom_idx_i.transpose("data", ...)
+atom_idx_j = xr.DataArray([1,0], dims=("pair_index",), name="idx_j").expand_dims({"data": n_data})
+atom_idx_j = atom_idx_j.transpose("data", ...)
+node_mask = xr.DataArray(np.ones((n_atoms)), dims=("atom",), name="nodes_mask").expand_dims({"data": n_data})
+node_mask = node_mask.transpose("data", ...)
 
 dataset = dataset.assign(atomic_type=atom_number_array)
+dataset = dataset.assign(idx_i=atom_idx_i)
+dataset = dataset.assign(idx_j=atom_idx_j)
+dataset = dataset.assign(node_mask=node_mask)
 prop_keys[property_names.atomic_type] = "atomic_type"
 # TODO: FIXME: Deal with the state being one of the features
 # dataset = dataset.isel(state=0)
@@ -126,7 +135,8 @@ opt = Optimizer()
 tx = opt.get(learning_rate=1e-3)
 
 coach = Coach(
-    inputs=[pn.atomic_position, pn.atomic_type, pn.idx_i, pn.idx_j, pn.node_mask],
+    # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
+    inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
     targets=[pn.energy, pn.force],
     epochs=1000,
     training_batch_size=5,
@@ -145,7 +155,7 @@ data_tuple = DataTuple(inputs=coach.inputs, targets=coach.targets, prop_keys=pro
 train_ds = data_tuple(d["train"])
 valid_ds = data_tuple(d["valid"])
 
-inputs = jax.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
+inputs = jax.tree_util.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
 params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
 train_state, h_train_state = create_train_state(
     net,
