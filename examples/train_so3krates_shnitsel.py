@@ -69,11 +69,17 @@ dataset[F_key].assign_attrs(units="eV/m")
 atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
 atom_number_array = atom_number_array.transpose("data", ...)
 
-atom_idx_i = xr.DataArray([0,1], dims=("pair_index",), name="idx_i").expand_dims({"data": n_data})
+atom_idx_i = xr.DataArray([0, 1], dims=("pair_index",), name="idx_i").expand_dims(
+    {"data": n_data}
+)
 atom_idx_i = atom_idx_i.transpose("data", ...)
-atom_idx_j = xr.DataArray([1,0], dims=("pair_index",), name="idx_j").expand_dims({"data": n_data})
+atom_idx_j = xr.DataArray([1, 0], dims=("pair_index",), name="idx_j").expand_dims(
+    {"data": n_data}
+)
 atom_idx_j = atom_idx_j.transpose("data", ...)
-node_mask = xr.DataArray(np.ones((n_atoms)), dims=("atom",), name="nodes_mask").expand_dims({"data": n_data})
+node_mask = xr.DataArray(
+    np.ones((n_atoms)), dims=("atom",), name="nodes_mask"
+).expand_dims({"data": n_data})
 node_mask = node_mask.transpose("data", ...)
 
 dataset = dataset.assign(atomic_type=atom_number_array)
@@ -86,7 +92,7 @@ prop_keys[property_names.atomic_type] = "atomic_type"
 
 print(repr(dataset))
 
-#print(repr(dataset["state"]))
+# print(repr(dataset["state"]))
 
 
 property_keys = dict()
@@ -105,9 +111,10 @@ for key, value in prop_keys.items():
         # print(key, ":=", value, "-->", repr(dataset[value]))
     property_keys.update(**{key: key})
 
+prop_keys = property_keys
 
 r_cut = 5
-data_set = DataSet(data=dataset_arrays, prop_keys=property_keys)
+data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
 data_set.random_split(
     n_train=200, n_valid=200, n_test=None, mic=False, r_cut=r_cut, training=True, seed=0
 )
@@ -136,7 +143,14 @@ tx = opt.get(learning_rate=1e-3)
 
 coach = Coach(
     # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
-    inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
+    inputs=[
+        pn.atomic_position,
+        pn.atomic_type,
+        pn.atomic_state,
+        pn.idx_i,
+        pn.idx_j,
+        pn.node_mask,
+    ],
     targets=[pn.energy, pn.force],
     epochs=1000,
     training_batch_size=5,
