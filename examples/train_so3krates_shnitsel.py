@@ -10,9 +10,13 @@ from mlff.io.io import create_directory, bundle_dicts, save_dict
 from mlff.training import Coach, Optimizer, get_loss_fn, create_train_state
 from mlff.data import DataTuple, DataSet
 
-from mlff.nn.stacknet import get_obs_and_force_fn, get_observable_fn, get_energy_force_stress_fn
+from mlff.nn.stacknet import (
+    get_obs_and_force_fn,
+    get_observable_fn,
+    get_energy_force_stress_fn,
+)
 from mlff.nn import So3krates
-from mlff.properties import md17_property_keys as prop_keys, shnitsel_property_keys_static, shnitsel_property_keys_dynamic
+from mlff.properties import shnitsel_property_keys_dynamic as prop_keys
 from mlff.properties import property_names
 
 import mlff.properties.property_names as pn
@@ -20,85 +24,99 @@ from netCDF4 import Dataset
 import sys
 
 import shnitsel as sh
+import xarray as xr
 from shnitsel.core.parse.common import transform_atom_name_to_number
 
 port = portpicker.pick_unused_port()
-jax.distributed.initialize(f'localhost:{port}', num_processes=1, process_id=0)
+jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
 
-data_dynamic_path = 'data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc'
-data_static_path = 'data/I01_43365/I01_ch2nh2_static.nc'
-save_path = 'ckpt_dir'
+data_dynamic_path = "data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
+data_static_path = "data/I01_43365/I01_ch2nh2_static.nc"
+save_path = "ckpt_dir"
 
-ckpt_dir = os.path.join(save_path, 'module')
+ckpt_dir = os.path.join(save_path, "module")
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
 E_key = prop_keys[property_names.energy]
 F_key = prop_keys[property_names.force]
+atom_type_key = prop_keys[property_names.atomic_type]
 
 data_path = data_static_path
 data_path = data_dynamic_path
 
-dataset = Dataset(data_path)
-for var in dataset.variables:
-    print(var, ">>", repr(dataset.variables[var]))
-for var in dataset.dimensions:
-    print(var, ">>", repr(dataset.dimensions[var]))
+dataset: xr.Dataset = sh.open_frames(data_path)
+dataset = dataset.transpose("frame", ...)
+dataset = dataset.reset_index("frame")
+dataset = dataset.stack(data=["frame", "state"])
+dataset = dataset.transpose("data", ...)
+# print(repr(dataset))
 
-print(dataset.variables.keys())
+atom_type = dataset.variables[atom_type_key]
+atom_number = transform_atom_name_to_number(atom_type)
 
-print("type:",
-      dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_type]][:])
+n_data = dataset.sizes["data"]
+# print(n_data)
 
-print("atom_number:",
-      transform_atom_name_to_number(dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_type]][:])[:])
+positions = dataset.variables[prop_keys[property_names.atomic_position]]
 
-print("state:",
-      dataset.variables[shnitsel_property_keys_dynamic[property_names.atomic_state]][:])
-print("state2:",
-      dataset.variables['state2'][:])
-print("direction:",
-      dataset.variables['direction'][:])
-print("sdiag:",
-      dataset.variables['sdiag'][:])
+# data already in eV
+# dataset[E_key] = dataset[E_key]
+# convert data to eV from hartree/bohr used in Shnitsel
+dataset[F_key].values *= si.Bohr / si.Hartree
+dataset[F_key].assign_attrs(units="eV/m")
+
+atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
+atom_number_array = atom_number_array.transpose("data", ...)
+
+print(atom_number_array.dims)
+
+dataset = dataset.assign(atomic_type=atom_number_array)
+prop_keys[property_names.atomic_type] = "atomic_type"
+# TODO: FIXME: Deal with the state being one of the features
+# dataset = dataset.isel(state=0)
+
+print(repr(dataset))
+
+#print(repr(dataset["state"]))
 
 
-'sdiag', 'astate', 'phases', 'nacs', 'from', 'to', 'state', 'state2', 'atom', 'direction', 'atNames', 'max_ts', 'completed', 'nsteps', 'time', 'trajid'
+property_keys = dict()
+dataset_arrays = dict()
 
-sys.exit(0)
+for key, value in prop_keys.items():
+    if value in dataset.variables:
+        data = dataset[value].values
+        if key == "atomic_state":
+            # print("state data:", data.shape)
+            data = data.reshape(-1, 1)
+            # print("state data:", data.shape)
+            dataset_arrays.update(**{key: data})
+        else:
+            dataset_arrays.update(**{key: data})
+        # print(key, ":=", value, "-->", repr(dataset[value]))
+    property_keys.update(**{key: key})
 
-
-data = dict(np.load(data_path))
-
-# convert data to eV from kcal/mol used in MD17 data
-data[E_key] = data[E_key] * si.kcal / si.mol
-data[F_key] = data[F_key] * si.kcal / si.mol
 
 r_cut = 5
-data_set = DataSet(data=data, prop_keys=prop_keys)
-data_set.random_split(n_train=200,
-                      n_valid=200,
-                      n_test=None,
-                      mic=False,
-                      r_cut=r_cut,
-                      training=True,
-                      seed=0
-                      )
+data_set = DataSet(data=dataset_arrays, prop_keys=property_keys)
+data_set.random_split(
+    n_train=200, n_valid=200, n_test=None, mic=False, r_cut=r_cut, training=True, seed=0
+)
 
 data_set.shift_x_by_mean_x(x=pn.energy)
 
-data_set.save_splits_to_file(ckpt_dir, 'splits.json')
-data_set.save_scales(ckpt_dir, 'scales.json')
+data_set.save_splits_to_file(ckpt_dir, "splits.json")
+data_set.save_scales(ckpt_dir, "scales.json")
 
 d = data_set.get_data_split()
 
-net = So3krates(F=32,
-                n_layer=2,
-                prop_keys=prop_keys,
-                geometry_embed_kwargs={'degrees': [1, 2],
-                                       'r_cut': r_cut
-                                       },
-                so3krates_layer_kwargs={'n_heads': 2,
-                                        'degrees': [1, 2]})
+net = So3krates(
+    F=32,
+    n_layer=2,
+    prop_keys=prop_keys,
+    geometry_embed_kwargs={"degrees": [1, 2], "r_cut": r_cut},
+    so3krates_layer_kwargs={"n_heads": 2, "degrees": [1, 2]},
+)
 
 obs_fn = get_obs_and_force_fn(net)
 obs_fn = jax.vmap(obs_fn, in_axes=(None, 0))
@@ -107,55 +125,53 @@ opt = Optimizer()
 
 tx = opt.get(learning_rate=1e-3)
 
-coach = Coach(inputs=[pn.atomic_position, pn.atomic_type, pn.idx_i, pn.idx_j, pn.node_mask],
-              targets=[pn.energy, pn.force],
-              epochs=1000,
-              training_batch_size=5,
-              validation_batch_size=5,
-              loss_weights={pn.energy: .01, pn.force: 0.99},
-              ckpt_dir=ckpt_dir,
-              data_path=data_path,
-              net_seed=0,
-              training_seed=0)
+coach = Coach(
+    inputs=[pn.atomic_position, pn.atomic_type, pn.idx_i, pn.idx_j, pn.node_mask],
+    targets=[pn.energy, pn.force],
+    epochs=1000,
+    training_batch_size=5,
+    validation_batch_size=5,
+    loss_weights={pn.energy: 0.01, pn.force: 0.99},
+    ckpt_dir=ckpt_dir,
+    data_path=data_path,
+    net_seed=0,
+    training_seed=0,
+)
 
-loss_fn = get_loss_fn(obs_fn=obs_fn,
-                      weights=coach.loss_weights,
-                      prop_keys=prop_keys)
+loss_fn = get_loss_fn(obs_fn=obs_fn, weights=coach.loss_weights, prop_keys=prop_keys)
 
-data_tuple = DataTuple(inputs=coach.inputs,
-                       targets=coach.targets,
-                       prop_keys=prop_keys)
+data_tuple = DataTuple(inputs=coach.inputs, targets=coach.targets, prop_keys=prop_keys)
 
-train_ds = data_tuple(d['train'])
-valid_ds = data_tuple(d['valid'])
+train_ds = data_tuple(d["train"])
+valid_ds = data_tuple(d["valid"])
 
 inputs = jax.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
 params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
-train_state, h_train_state = create_train_state(net,
-                                                params,
-                                                tx,
-                                                polyak_step_size=None,
-                                                plateau_lr_decay={'patience': 50,
-                                                                  'decay_factor': 1.
-                                                                  },
-                                                scheduled_lr_decay={'exponential': {'transition_steps': 10_000,
-                                                                                    'decay_factor': 0.9}
-                                                                    }
-                                                )
+train_state, h_train_state = create_train_state(
+    net,
+    params,
+    tx,
+    polyak_step_size=None,
+    plateau_lr_decay={"patience": 50, "decay_factor": 1.0},
+    scheduled_lr_decay={
+        "exponential": {"transition_steps": 10_000, "decay_factor": 0.9}
+    },
+)
 
 h_net = net.__dict_repr__()
 h_opt = opt.__dict_repr__()
 h_coach = coach.__dict_repr__()
 h_dataset = data_set.__dict_repr__()
 h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
-save_dict(path=ckpt_dir, filename='hyperparameters.json',
-          data=h, exists_ok=True)
+save_dict(path=ckpt_dir, filename="hyperparameters.json", data=h, exists_ok=True)
 
 wandb.init(config=h)
-coach.run(train_state=train_state,
-          train_ds=train_ds,
-          valid_ds=valid_ds,
-          loss_fn=loss_fn,
-          log_every_t=1,
-          restart_by_nan=True,
-          use_wandb=True)
+coach.run(
+    train_state=train_state,
+    train_ds=train_ds,
+    valid_ds=valid_ds,
+    loss_fn=loss_fn,
+    log_every_t=1,
+    restart_by_nan=True,
+    use_wandb=True,
+)
