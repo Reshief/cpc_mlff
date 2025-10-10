@@ -271,7 +271,8 @@ class DataSet:
         set_seeds(seed)
         _k = list(data.keys())[0]
         n_data = len(data[_k])
-        perm = np.random.RandomState(seed).permutation(n_data)
+        random_sate = np.random.RandomState(seed)
+        perm = random_sate.permutation(n_data)
         idx_all = np.arange(n_data)[perm]
 
         if draw_strat:
@@ -288,7 +289,7 @@ class DataSet:
 
         # set sorts the indices, so we have to permute them again
         idx_test = np.array(list(set(idx_all) - set(idx_train) - set(idx_valid)))
-        test_perm = np.random.RandomState(seed).permutation(len(idx_test))
+        test_perm = random_sate.permutation(len(idx_test))
         idx_test = idx_test[test_perm][:n_test]  # array[:None] returns all elements of array
 
         if n_test is None:
@@ -298,6 +299,7 @@ class DataSet:
         assert len(set(idx_train)) == n_train
         assert len(set(idx_valid)) == n_valid
         assert len(set(idx_test)) == n_test
+        
         # make sure there is no overlap
         assert len(set(idx_test) & set(idx_train)) == 0
         assert len(set(idx_test) & set(idx_valid)) == 0
