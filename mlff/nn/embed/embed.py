@@ -61,7 +61,7 @@ class GeometryEmbed(BaseSubModule):
 
         _cut_fn = get_cutoff_fn(self.radial_cutoff_fn)
         self.cut_fn = partial(_cut_fn, r_cut=self.r_cut)
-        self._lambda = jnp.float32(self.sphc_normalization)
+        self._lambda = jnp.float32(self.sphc_normalization) if self.sphc_normalization is not None else None
 
     def __call__(self, inputs: Dict, *args, **kwargs):
         """
