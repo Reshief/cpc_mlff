@@ -46,4 +46,4 @@ shnitsel_property_keys_dynamic = {
     total_dipole_moment_transient: 'dip_trans',
 }
 
-'sdiag', 'astate', 'phases', 'nacs', 'from', 'to', 'state', 'state2', 'atom', 'direction', 'atNames', 'max_ts', 'completed', 'nsteps', 'time', 'trajid'
+# 'sdiag', 'astate', 'phases', 'nacs', 'from', 'to', 'state', 'state2', 'atom', 'direction', 'atNames', 'max_ts', 'completed', 'nsteps', 'time', 'trajid'
