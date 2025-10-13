@@ -152,7 +152,7 @@ n_test = args.n_test
 # apply_to = args.apply_to
 # from_split = args.from_split
 units = args.units
-prop_keys = args.prop_keys
+a_prop_keys = args.prop_keys
 n_cut = args.neigh_cut
 # _targets = args.targets
 # save_predictions_to = args.save_predictions_to
@@ -179,6 +179,8 @@ ckpt_dir = (
     .resolve()
 ).as_posix()
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
+
+prop_keys.update(a_prop_keys)
 
 E_key = prop_keys[property_names.energy]
 F_key = prop_keys[property_names.force]
