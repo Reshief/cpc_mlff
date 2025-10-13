@@ -20,7 +20,7 @@ dependencies = [
     "jaxopt",
     "jraph",
     "optax",
-    "orbax-checkpoint == 0.5.23",
+    "orbax-checkpoint == 0.11.5",
     "portpicker",
     "importlib",
     # 'tensorflow',
