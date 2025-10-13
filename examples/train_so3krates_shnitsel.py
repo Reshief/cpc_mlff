@@ -34,7 +34,9 @@ data_dynamic_path = "data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
 data_static_path = "data/I01_43365/I01_ch2nh2_static.nc"
 save_path = "ckpt_dir"
 
-ckpt_dir = os.path.join(save_path, "module")
+import pathlib
+
+ckpt_dir = pathlib.Path(save_path).joinpath("module").absolute()
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
 E_key = prop_keys[property_names.energy]
