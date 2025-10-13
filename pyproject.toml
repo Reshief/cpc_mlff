@@ -60,17 +60,17 @@ shnitsel-tools = { git = "https://github.com/Reshief/shnitsel-tools.git" }
 conflicts = [
     [
         { extra = "cpu" },
-        { extra = "cu11" },
+        #{ extra = "cu11" },
         { extra = "cu12" },
-        { extra = "cu13" },
+        #{ extra = "cu13" },
     ],
 ]
 
 [project.optional-dependencies]
 cpu = ["jax==0.6.0"]
 cu12 = ["jax[cuda12]==0.6.0"]
-cu13 = ["jax[cuda13]==0.6.0"]
-cu11 = ["jax[cuda11]==0.6.0"]
+#cu13 = ["jax[cuda13]==0.6.0"]
+#cu11 = ["jax[cuda11]==0.6.0"]
 shnitsel = ["shnitsel-tools>=0.0.1.post1"]
 
 [project.scripts]
