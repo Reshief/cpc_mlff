@@ -70,7 +70,6 @@ cu13 = ["jax[cuda13]==0.6.0"]
 cu11 = ["jax[cuda11]==0.6.0"]
 
 [project.scripts]
-my-client = "my_package.my_module:main_cli"
 evaluate = "mlff.cAPI.mlff_eval:evaluate"
 train = "mlff.cAPI.mlff_train:train"
 run_md = "mlff.cAPI.mlff_md:run_md"
