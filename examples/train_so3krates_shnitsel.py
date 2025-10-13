@@ -115,10 +115,13 @@ for key, value in prop_keys.items():
 
 prop_keys = property_keys
 
+num_training = int(np.round(n_data*0.8))
+num_valid = int(np.round(n_data*0.1))
+
 r_cut = 5
 data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
 data_set.random_split(
-    n_train=200, n_valid=200, n_test=None, mic=False, r_cut=r_cut, training=True, seed=0
+    n_train=num_training, n_valid=num_valid, n_test=None, mic=False, r_cut=r_cut, training=True, seed=0
 )
 
 data_set.shift_x_by_mean_x(x=pn.energy)
