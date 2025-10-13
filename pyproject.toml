@@ -15,7 +15,6 @@ license-files = ["LICENSE.md"]
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
-    # "jax == 0.4.8",
     "flax",
     "jaxopt",
     "jraph",
@@ -54,9 +53,21 @@ where = ["."]
 [tool.setuptools.package-data]
 mlff = ["sph_ops/cgmatrix.npz", "sph_ops/u_matrix.pickle"]
 
+[tool.uv]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cu11" },
+        { extra = "cu12" },
+        { extra = "cu13" },
+    ],
+]
+
 [project.optional-dependencies]
-gui = []
-cli = []
+cpu = ["jax==0.6.0"]
+cu12 = ["jax[cuda12]==0.6.0"]
+cu13 = ["jax[cuda13]==0.6.0"]
+cu11 = ["jax[cuda11]==0.6.0"]
 
 [project.scripts]
 my-client = "my_package.my_module:main_cli"
