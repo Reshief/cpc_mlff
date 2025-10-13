@@ -1,3 +1,4 @@
+from mlff.cAPI.process_argparse import StoreDictKeyPair
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -27,6 +28,141 @@ import shnitsel as sh
 import xarray as xr
 from shnitsel.core.parse.common import transform_atom_name_to_number
 
+import argparse
+
+# Create the parser
+parser = argparse.ArgumentParser(
+    description="Run a training run on the shnitsel dataset."
+)
+
+# Add the arguments
+parser.add_argument(
+    "--ckpt_dir",
+    type=str,
+    required=False,
+    default=os.getcwd(),
+    help="Path to the checkpoint directory. Defaults to the current directory.",
+)
+
+"""parser.add_argument('--apply_to', type=str, required=False, default=None,
+                  help='Path to data file that the model should be applied to. '
+                        'Defaults to the training data file.')
+
+parser.add_argument('--on', type=str, required=False, default='test',
+                  help='Evaluate the model on the `train`,`valid` or `test` split. Defaults to `test`.')"""
+
+# Arguments that determine the training parameters
+parser.add_argument(
+    "--n_test",
+    type=int,
+    required=False,
+    default=None,
+    help="Number of test points. Defaults to all data points that have been not seen during "
+    "training if model is evaluated on the same data set as it has been trained on.",
+)
+
+parser.add_argument(
+    "--batch_size",
+    type=int,
+    required=False,
+    default=10,
+    help="Batch size of the inference passes. Default=10",
+)
+
+parser.add_argument(
+    "--degree",
+    type=int,
+    required=False,
+    default=2,
+    help="Degree of spherical harmonics considered. Default=2",
+)
+
+parser.add_argument(
+    "--features",
+    type=int,
+    required=False,
+    default=32,
+    help="Number of features. Default=32",
+)
+
+parser.add_argument(
+    "--n_layers",
+    type=int,
+    required=False,
+    default=2,
+    help="Number of layers. Default=2",
+)
+
+# parser.add_argument('--from_split', type=str, required=False, default=None,
+#                  help='The name of the data split. If not specified, all data from the file specified in '
+#                        '`--apply_to` is loaded and used for testing.')
+
+parser.add_argument(
+    "--units",
+    action=StoreDictKeyPair,
+    metavar="KEY1=VAL1,KEY2=VAL2...",
+    default=None,
+    help="Units in the data set for the quantities. Needs only to be specified"
+    "if the model has been trained on units different from the ones present in the data set.",
+)
+
+parser.add_argument(
+    "--prop_keys",
+    action=StoreDictKeyPair,
+    metavar="KEY1=VAL1,KEY2=VAL2...",
+    default=None,
+    help="Property keys of the data set. Needs only to be specified, if e.g. the keys of the "
+    "properties in the data set that the model is applied to differ from the keys the model"
+    "has been trained on.",
+)
+
+parser.add_argument(
+    "--neigh_cut",
+    type=float,
+    required=False,
+    default=None,
+    help="Cutoff used for the calculation of the neighborhood lists. Defaults to the r_cut"
+    "of the NN model.",
+)
+
+parser.add_argument("--targets", nargs="+", required=False, default=None)
+
+"""parser.add_argument(
+    "--jax_dtype",
+    type=str,
+    required=False,
+    default="x32",
+    help="Set JAX default dtype. Default is jax.numpy.float32",
+)"""
+
+"""parser.add_argument(
+    "--save_predictions_to",
+    type=str,
+    required=False,
+    default="predictions.npz",
+    help="Save the predictions and ground truth values to a ckpt_dir/$save_predictions_to.npz.",
+)"""
+
+args = parser.parse_args()
+
+# Read arguments
+ckpt_dir = args.ckpt_dir
+batch_size = args.batch_size
+n_test = args.n_test
+# apply_to = args.apply_to
+# from_split = args.from_split
+units = args.units
+prop_keys = args.prop_keys
+n_cut = args.neigh_cut
+# _targets = args.targets
+# save_predictions_to = args.save_predictions_to
+sphc_degree = args.degree
+num_features = args.features
+n_layers = args.n_layers
+
+sphc_degrees_array = np.arange(1, sphc_degree + 1)
+
+
 port = portpicker.pick_unused_port()
 jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
 
@@ -36,7 +172,12 @@ save_path = "ckpt_dir"
 
 import pathlib
 
-ckpt_dir = pathlib.Path(save_path).joinpath("module").absolute()
+ckpt_dir = (
+    pathlib.Path(args.ckpt_dir)
+    .joinpath(f"module_deg{sphc_degree}")
+    .absolute()
+    .resolve()
+).as_posix()
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
 E_key = prop_keys[property_names.energy]
@@ -115,13 +256,19 @@ for key, value in prop_keys.items():
 
 prop_keys = property_keys
 
-num_training = int(np.round(n_data*0.8))
-num_valid = int(np.round(n_data*0.1))
+num_training = int(np.round(n_data * 0.8))
+num_valid = int(np.round(n_data * 0.1))
 
-r_cut = 5
+r_cut = n_cut if n_cut is not None else 5
 data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
 data_set.random_split(
-    n_train=num_training, n_valid=num_valid, n_test=None, mic=False, r_cut=r_cut, training=True, seed=0
+    n_train=num_training,
+    n_valid=num_valid,
+    n_test=None,
+    mic=False,
+    r_cut=r_cut,
+    training=True,
+    seed=0,
 )
 
 data_set.shift_x_by_mean_x(x=pn.energy)
@@ -132,11 +279,11 @@ data_set.save_scales(ckpt_dir, "scales.json")
 d = data_set.get_data_split()
 
 net = So3krates(
-    F=32,
-    n_layer=2,
+    F=num_features,
+    n_layer=n_layers,
     prop_keys=prop_keys,
-    geometry_embed_kwargs={"degrees": [1, 2], "r_cut": r_cut},
-    so3krates_layer_kwargs={"n_heads": 2, "degrees": [1, 2]},
+    geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
+    so3krates_layer_kwargs={"n_heads": 2, "degrees": sphc_degrees_array},
 )
 
 obs_fn = get_obs_and_force_fn(net)
@@ -158,8 +305,8 @@ coach = Coach(
     ],
     targets=[pn.energy, pn.force],
     epochs=1000,
-    training_batch_size=5,
-    validation_batch_size=5,
+    training_batch_size=batch_size,
+    validation_batch_size=batch_size,
     loss_weights={pn.energy: 0.01, pn.force: 0.99},
     ckpt_dir=ckpt_dir,
     data_path=data_path,
