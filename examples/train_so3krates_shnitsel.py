@@ -160,7 +160,7 @@ sphc_degree = args.degree
 num_features = args.features
 n_layers = args.n_layers
 
-sphc_degrees_array = np.arange(1, sphc_degree + 1)
+sphc_degrees_array = list(range(1, sphc_degree + 1))
 
 
 port = portpicker.pick_unused_port()
@@ -181,7 +181,7 @@ ckpt_dir = (
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
 if a_prop_keys is not None:
-      prop_keys.update(a_prop_keys)
+    prop_keys.update(a_prop_keys)
 
 E_key = prop_keys[property_names.energy]
 F_key = prop_keys[property_names.force]
