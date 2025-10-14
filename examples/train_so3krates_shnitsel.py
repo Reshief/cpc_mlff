@@ -65,8 +65,8 @@ parser.add_argument(
     "--batch_size",
     type=int,
     required=False,
-    default=10,
-    help="Batch size of the inference passes. Default=10",
+    default=5,
+    help="Batch size of the inference passes. Default=5",
 )
 
 parser.add_argument(
