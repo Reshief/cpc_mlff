@@ -174,7 +174,7 @@ import pathlib
 
 ckpt_dir = (
     pathlib.Path(args.ckpt_dir)
-    .joinpath(f"module_deg{sphc_degree}")
+    .joinpath(f"module_F{num_features}_deg{sphc_degree}")
     .absolute()
     .resolve()
 ).as_posix()
