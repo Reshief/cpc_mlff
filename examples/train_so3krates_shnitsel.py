@@ -259,8 +259,8 @@ for key, value in prop_keys.items():
 
 prop_keys = property_keys
 
-num_training = int(np.round(n_data * 0.8))
-num_valid = int(np.round(n_data * 0.1))
+num_training = int(np.round(n_data * 0.2))
+num_valid = int(np.round(n_data * 0.6))
 
 r_cut = n_cut if n_cut is not None else 5
 data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
