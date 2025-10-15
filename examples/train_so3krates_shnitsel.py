@@ -93,6 +93,14 @@ parser.add_argument(
     help="Number of layers. Default=2",
 )
 
+parser.add_argument(
+    "--n_heads",
+    type=int,
+    required=False,
+    default=2,
+    help="Number of attention heads. May be corrected down to avoid division by zero. Default=2",
+)
+
 # parser.add_argument('--from_split', type=str, required=False, default=None,
 #                  help='The name of the data split. If not specified, all data from the file specified in '
 #                        '`--apply_to` is loaded and used for testing.')
@@ -159,6 +167,12 @@ n_cut = args.neigh_cut
 sphc_degree = args.degree
 num_features = args.features
 n_layers = args.n_layers
+n_heads = args.n_heads
+
+for candidate in range(n_heads, 0, -1):
+    if num_features % candidate == 0:
+        n_heads = candidate
+        break
 
 sphc_degrees_array = list(range(1, sphc_degree + 1))
 
@@ -286,7 +300,7 @@ net = So3krates(
     n_layer=n_layers,
     prop_keys=prop_keys,
     geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
-    so3krates_layer_kwargs={"n_heads": 2, "degrees": sphc_degrees_array},
+    so3krates_layer_kwargs={"n_heads": n_heads, "degrees": sphc_degrees_array},
 )
 
 obs_fn = get_obs_and_force_fn(net)
