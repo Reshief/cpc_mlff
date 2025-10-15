@@ -33,7 +33,7 @@ class StackNet(nn.Module):
     @classmethod
     def create_from_ckpt_dir(cls, ckpt_dir: str):
         h_path = Path(ckpt_dir).absolute().resolve() / 'hyperparameters.json'
-        stack_net = init_stack_net(read_json(h_path))
+        stack_net = init_stack_net(read_json(h_path.resolve().as_posix()))
         return stack_net
 
     @nn.compact
@@ -74,7 +74,6 @@ class StackNet(nn.Module):
         quantities.update({'x': x})
 
         for (n, layer) in enumerate(self.layers):
-
             updated_quantities = layer(**quantities)
             quantities.update(updated_quantities)
 
