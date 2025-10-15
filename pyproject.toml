@@ -54,7 +54,7 @@ where = ["."]
 mlff = ["sph_ops/cgmatrix.npz", "sph_ops/u_matrix.pickle"]
 
 [tool.uv.sources]
-shnitsel-tools = { git = "https://github.com/Reshief/shnitsel-tools.git" }
+shnitsel-tools = { git = "https://github.com/Reshief/shnitsel-tools.git", branch = "develop" }
 
 [tool.uv]
 conflicts = [
