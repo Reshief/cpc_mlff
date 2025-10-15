@@ -173,8 +173,9 @@ n_heads = max(1, min(num_features, n_heads))
 for candidate in range(n_heads, 0, -1):
     if num_features % candidate == 0:
         n_heads = candidate
-        print(f"Opted for {n_heads} attention heads")
         break
+
+print(f"Opted for {n_heads} attention heads")
 
 sphc_degrees_array = list(range(1, sphc_degree + 1))
 
