@@ -288,13 +288,14 @@ prop_keys = property_keys
 num_training = n_train if n_train is not None else int(np.round(n_data * 0.2))
 num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
 num_valid = int(np.round(n_data * 0.6))
+num_valid = n_data - num_test - num_training
 
 r_cut = n_cut if n_cut is not None else 5
 data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
 data_set.random_split(
     n_train=num_training,
-    n_valid=None,  # num_valid,
-    n_test=num_test,
+    n_valid=num_valid,  
+    n_test=None,  # num_test,
     mic=False,
     r_cut=r_cut,
     training=True,
