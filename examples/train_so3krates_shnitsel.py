@@ -62,6 +62,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--n_train",
+    type=int,
+    required=False,
+    default=None,
+    help="Number of training points. Defaults to 1/5 of all data points.",
+)
+
+parser.add_argument(
     "--batch_size",
     type=int,
     required=False,
@@ -157,6 +165,7 @@ args = parser.parse_args()
 ckpt_dir = args.ckpt_dir
 batch_size = args.batch_size
 n_test = args.n_test
+n_train = args.n_train
 # apply_to = args.apply_to
 # from_split = args.from_split
 units = args.units
@@ -276,15 +285,16 @@ for key, value in prop_keys.items():
 
 prop_keys = property_keys
 
-num_training = int(np.round(n_data * 0.2))
+num_training = n_train if n_train is not None else int(np.round(n_data * 0.2))
+num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
 num_valid = int(np.round(n_data * 0.6))
 
 r_cut = n_cut if n_cut is not None else 5
 data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
 data_set.random_split(
     n_train=num_training,
-    n_valid=num_valid,
-    n_test=None,
+    n_valid=None,  # num_valid,
+    n_test=num_test,
     mic=False,
     r_cut=r_cut,
     training=True,
