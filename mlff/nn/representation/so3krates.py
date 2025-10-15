@@ -61,7 +61,7 @@ def _default_geometry_embed_arguments():
 def _default_layer_arguments(F: int):
     return {'degrees': [1, 2, 3],
             'fb_rad_filter_features': [F, F],
-            'fb_sph_filter_features': [int(F/4), F],
+            'fb_sph_filter_features': [max(int(F/4),1), F],
             'gb_rad_filter_features': [F, F],
-            'gb_sph_filter_features': [int(F/4), F]
+            'gb_sph_filter_features': [max(int(F/4),1), F]
             }
