@@ -17,7 +17,10 @@ from mlff.nn.stacknet import (
     get_energy_force_stress_fn,
 )
 from mlff.nn import So3krates
-from mlff.properties import shnitsel_property_keys_dynamic as prop_keys
+from mlff.properties import (
+    shnitsel_property_keys_dynamic as prop_keys_shnitsel_dynamic,
+    shnitsel_property_keys_static as prop_keys_shnitsel_static,
+)
 from mlff.properties import property_names
 
 import mlff.properties.property_names as pn
@@ -27,6 +30,8 @@ import sys
 import shnitsel as sh
 import xarray as xr
 from shnitsel.core.parse.common import transform_atom_name_to_number
+import pathlib
+import shnitsel.xarray
 
 import argparse
 
@@ -188,15 +193,233 @@ print(f"Opted for {n_heads} attention heads")
 
 sphc_degrees_array = list(range(1, sphc_degree + 1))
 
+from rdkit import Chem
+
+
+def adjacency_from_mol(rdkit_mol):
+    am = Chem.GetAdjacencyMatrix(rdkit_mol)
+
+    adj_i = []
+    adj_j = []
+
+    for i in range(len(am)):
+        for j in range(len(am[i])):
+            if am[i, j] != 0:
+                adj_i.append(i)
+                adj_j.append(j)
+
+    return xr.DataArray(adj_i, dims=("pair_index",), name="idx_i"), xr.DataArray(
+        adj_j, dims=("pair_index",), name="idx_j"
+    )
+
+
+def import_shnitsel_dynamic(data_path, prop_keys):
+    E_key = prop_keys[property_names.energy]
+    F_key = prop_keys[property_names.force]
+    atom_type_key = prop_keys[property_names.atomic_type]
+
+    # Load dataset
+    dataset: xr.Dataset = sh.open_frames(data_path)
+
+    # Restructure the dimensions into one continuous frame/state dimension
+    dataset = dataset.transpose("frame", ...)
+    dataset = dataset.reset_index("frame")
+    dataset = dataset.stack(data=["frame", "state"])
+    dataset = dataset.transpose("data", ...)
+
+    # Translate atom types into number representations
+    atom_type = dataset.variables[atom_type_key]
+    atom_number = transform_atom_name_to_number(atom_type)
+
+    rdkit_mol = dataset.isel(data=0).atXYZ.sh.to_mol()
+    idx_i, idx_j = adjacency_from_mol(rdkit_mol)
+
+    n_data = dataset.sizes["data"]
+    n_atoms = dataset.sizes["atom"]
+
+    # Normalize units
+
+    # data already in eV
+    # dataset[E_key] = dataset[E_key]
+    # convert data to eV from hartree/bohr used in Shnitsel
+    dataset[F_key].values *= si.Bohr / si.Hartree
+    dataset[F_key].assign_attrs(units="eV/m")
+
+    # Make atom number array span the entirety of the dataset
+    atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
+    atom_number_array = atom_number_array.transpose("data", ...)
+
+    atom_idx_i = idx_i.expand_dims({"data": n_data})
+    atom_idx_i = atom_idx_i.transpose("data", ...)
+    atom_idx_j = idx_j.expand_dims({"data": n_data})
+    atom_idx_j = atom_idx_j.transpose("data", ...)
+
+    # Create node masks
+    node_mask = xr.DataArray(
+        np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
+    ).expand_dims({"data": n_data})
+    node_mask = node_mask.transpose("data", ...)
+
+    # Append new variables to dataset
+    dataset = dataset.assign(atomic_type=atom_number_array)
+    dataset = dataset.assign(idx_i=atom_idx_i)
+    dataset = dataset.assign(idx_j=atom_idx_j)
+    dataset = dataset.assign(node_mask=node_mask)
+    prop_keys[property_names.atomic_type] = "atomic_type"
+
+    # Make state into a per-atom variable
+    molecule_state_array = dataset[prop_keys[property_names.atomic_state]]
+    per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
+    per_atom_state_array = per_atom_state_array.transpose("data", ...)
+    dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
+    prop_keys[property_names.atomic_state] = "atomic_state_tmp"
+
+    print(repr(dataset))
+
+    # print(repr(dataset["state"]))
+
+    property_keys = dict()
+    dataset_arrays = dict()
+
+    rename_keys = dict()
+
+    for key, value in prop_keys.items():
+        if value in dataset.variables:
+            rename_keys.update(**{value: key})
+            data = dataset[value].values
+            # Add dimension to specific values that need to be 2D
+            """if value not in dataset.coords and len(data.shape) == 1 and data.shape[0] == n_data:
+                data_array = dataset[value]
+                data_array = data_array.expand_dims({"tmp": 1})
+                data_array = data_array.transpose("data", ...)
+                dataset = dataset.assign(**{value: data_array})
+
+                # print("state data:", data.shape)
+                data = data.reshape(-1, 1)"""
+
+            dataset_arrays.update(**{key: data})
+            # print(key, ":=", value, "-->", repr(dataset[value]))
+        property_keys.update(**{key: key})
+
+    dataset = dataset.rename_vars(rename_keys)
+
+    return n_data, property_keys, dataset_arrays, dataset
+
+
+def import_shnitsel_static(data_path, prop_keys):
+    E_key = prop_keys[property_names.energy]
+    F_key = prop_keys[property_names.force]
+    atom_type_key = prop_keys[property_names.atomic_type]
+
+    # Load dataset
+    dataset: xr.Dataset = sh.open_frames(data_path)
+
+    symbols = dataset.symbols
+    # dataset = dataset.drop_vars("symbols")
+    dataset = dataset.assign_coords(atNames=symbols)
+    # dataset = dataset.rename_vars({"symbols":"atNames"})
+    print(repr(dataset))
+
+    rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
+    idx_i, idx_j = adjacency_from_mol(rdkit_mol)
+
+    # TODO: use sh.core.geom.identify_bonds() to get bonds or use rdkit directly to construct adjacency matrix.
+
+    # print(repr(dataset.isel(frame=0).atXYZ.sh.to_mol()))
+    print(repr(rdkit_mol))
+
+    # Restructure the dimensions into one continuous frame/state dimension
+    dataset = dataset.transpose("frame", ...)
+    # dataset = dataset.reset_index("frame")
+    dataset = dataset.stack(data=["frame", "state"])
+    dataset = dataset.transpose("data", ...)
+
+    # Translate atom types into number representations
+    atom_type = dataset.variables[atom_type_key]
+    atom_number = transform_atom_name_to_number(atom_type)
+
+    n_data = dataset.sizes["data"]
+    n_atoms = dataset.sizes["atom"]
+
+    # Normalize units
+
+    # data already in eV
+    # dataset[E_key] = dataset[E_key]
+    # convert data to eV from hartree/bohr used in Shnitsel
+    dataset[F_key].values *= si.Bohr / si.Hartree
+    dataset[F_key].assign_attrs(units="eV/m")
+
+    # Make atom number array span the entirety of the dataset
+    atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
+    atom_number_array = atom_number_array.transpose("data", ...)
+
+    # Create adjacency matrix
+    atom_idx_i = idx_i.expand_dims({"data": n_data})
+    atom_idx_i = atom_idx_i.transpose("data", ...)
+    atom_idx_j = idx_j.expand_dims({"data": n_data})
+    atom_idx_j = atom_idx_j.transpose("data", ...)
+    # Create node masks
+    node_mask = xr.DataArray(
+        np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
+    ).expand_dims({"data": n_data})
+    node_mask = node_mask.transpose("data", ...)
+
+    # Append new variables to dataset
+    dataset = dataset.assign(atomic_type=atom_number_array)
+    dataset = dataset.assign(idx_i=atom_idx_i)
+    dataset = dataset.assign(idx_j=atom_idx_j)
+    dataset = dataset.assign(node_mask=node_mask)
+    prop_keys[property_names.atomic_type] = "atomic_type"
+
+    # Make state into a per-atom variable
+    molecule_state_array = dataset[prop_keys[property_names.atomic_state]]
+    per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
+    per_atom_state_array = per_atom_state_array.transpose("data", ...)
+    dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
+    prop_keys[property_names.atomic_state] = "atomic_state_tmp"
+
+    print(repr(dataset))
+
+    # print(repr(dataset["state"]))
+
+    property_keys = dict()
+    dataset_arrays = dict()
+
+    rename_keys = dict()
+
+    for key, value in prop_keys.items():
+        if value in dataset.variables:
+            rename_keys.update(**{value: key})
+            data = dataset[value].values
+            # Add dimension to specific values that need to be 2D
+            """if value not in dataset.coords and len(data.shape) == 1 and data.shape[0] == n_data:
+                data_array = dataset[value]
+                data_array = data_array.expand_dims({"tmp": 1})
+                data_array = data_array.transpose("data", ...)
+                dataset = dataset.assign(**{value: data_array})
+
+                # print("state data:", data.shape)
+                data = data.reshape(-1, 1)"""
+
+            dataset_arrays.update(**{key: data})
+            # print(key, ":=", value, "-->", repr(dataset[value]))
+        property_keys.update(**{key: key})
+
+    dataset = dataset.rename_vars(rename_keys)
+
+    return n_data, property_keys, dataset_arrays, dataset
+
 
 port = portpicker.pick_unused_port()
 jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
 
-data_dynamic_path = "data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
-data_static_path = "data/I01_43365/I01_ch2nh2_static.nc"
+data_path = "shnitsel_data"
+
+
+data_dynamic_path = "shnitsel_data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
+data_static_path = "shnitsel_data/I01_43365/I01_ch2nh2_static.nc"
 save_path = "ckpt_dir"
 
-import pathlib
 
 ckpt_dir = (
     pathlib.Path(args.ckpt_dir)
@@ -207,83 +430,20 @@ ckpt_dir = (
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
 if a_prop_keys is not None:
-    prop_keys.update(a_prop_keys)
-
-E_key = prop_keys[property_names.energy]
-F_key = prop_keys[property_names.force]
-atom_type_key = prop_keys[property_names.atomic_type]
+    prop_keys_shnitsel_dynamic.update(a_prop_keys)
 
 data_path = data_static_path
 data_path = data_dynamic_path
 
-dataset: xr.Dataset = sh.open_frames(data_path)
-dataset = dataset.transpose("frame", ...)
-dataset = dataset.reset_index("frame")
-dataset = dataset.stack(data=["frame", "state"])
-dataset = dataset.transpose("data", ...)
-# print(repr(dataset))
-
-atom_type = dataset.variables[atom_type_key]
-atom_number = transform_atom_name_to_number(atom_type)
-
-n_data = dataset.sizes["data"]
-n_atoms = dataset.sizes["atom"]
-# print(n_data)
-
-positions = dataset.variables[prop_keys[property_names.atomic_position]]
-
-# data already in eV
-# dataset[E_key] = dataset[E_key]
-# convert data to eV from hartree/bohr used in Shnitsel
-dataset[F_key].values *= si.Bohr / si.Hartree
-dataset[F_key].assign_attrs(units="eV/m")
-
-atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
-atom_number_array = atom_number_array.transpose("data", ...)
-
-atom_idx_i = xr.DataArray([0, 1], dims=("pair_index",), name="idx_i").expand_dims(
-    {"data": n_data}
+n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_static(
+    data_path=data_static_path, prop_keys=prop_keys_shnitsel_static
 )
-atom_idx_i = atom_idx_i.transpose("data", ...)
-atom_idx_j = xr.DataArray([1, 0], dims=("pair_index",), name="idx_j").expand_dims(
-    {"data": n_data}
+
+n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_dynamic(
+    data_path=data_dynamic_path, prop_keys=prop_keys_shnitsel_dynamic
 )
-atom_idx_j = atom_idx_j.transpose("data", ...)
-node_mask = xr.DataArray(
-    np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
-).expand_dims({"data": n_data})
-node_mask = node_mask.transpose("data", ...)
 
-dataset = dataset.assign(atomic_type=atom_number_array)
-dataset = dataset.assign(idx_i=atom_idx_i)
-dataset = dataset.assign(idx_j=atom_idx_j)
-dataset = dataset.assign(node_mask=node_mask)
-prop_keys[property_names.atomic_type] = "atomic_type"
-# TODO: FIXME: Deal with the state being one of the features
-# dataset = dataset.isel(state=0)
-
-print(repr(dataset))
-
-# print(repr(dataset["state"]))
-
-
-property_keys = dict()
-dataset_arrays = dict()
-
-for key, value in prop_keys.items():
-    if value in dataset.variables:
-        data = dataset[value].values
-        if key == "atomic_state":
-            # print("state data:", data.shape)
-            data = data.reshape(-1, 1)
-            # print("state data:", data.shape)
-            dataset_arrays.update(**{key: data})
-        else:
-            dataset_arrays.update(**{key: data})
-        # print(key, ":=", value, "-->", repr(dataset[value]))
-    property_keys.update(**{key: key})
-
-prop_keys = property_keys
+prop_keys = prop_keys_final
 
 num_training = n_train if n_train is not None else int(np.round(n_data * 0.2))
 num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
@@ -294,7 +454,7 @@ r_cut = n_cut if n_cut is not None else 5
 data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
 data_set.random_split(
     n_train=num_training,
-    n_valid=num_valid,  
+    n_valid=num_valid,
     n_test=None,  # num_test,
     mic=False,
     r_cut=r_cut,
@@ -338,7 +498,7 @@ coach = Coach(
     epochs=1000,
     training_batch_size=batch_size,
     validation_batch_size=batch_size,
-    loss_weights={pn.energy: 0.01, pn.force: 0.99},
+    loss_weights={pn.energy: 0.001, pn.force: 0.999},
     ckpt_dir=ckpt_dir,
     data_path=data_path,
     net_seed=0,
