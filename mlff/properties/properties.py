@@ -32,6 +32,7 @@ shnitsel_property_keys_static = {
     force: 'forces',
     atomic_position: 'positions',
     atomic_type: 'symbols',
+    atomic_state: 'state',
     total_dipole_moment: 'dip_perm',
     total_dipole_moment_transient: 'dip_trans',
     idx_i: 'idx_i',
