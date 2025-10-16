@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Any, Dict, Set, Tuple
 from mlff.cAPI.process_argparse import StoreDictKeyPair
 import numpy as np
 import jax
@@ -268,6 +268,122 @@ def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
             )
 
     return n_data_total, total_loaded_data
+
+
+def merge_array_across_systems(
+    key: str, loaded_datasets, fillValue: Any = 0, repeat_scalars: bool = True
+):
+
+    max_length = 0
+    for entry in loaded_datasets:
+        sys_prop_keys = entry["prop_keys"]
+        data_array = entry["data_as_array"][sys_prop_keys[key]]
+
+        max_length = max(
+            max_length,
+            (1 if len(data_array.shape) < 2 else data_array.shape[1]),
+        )
+
+    merged_array = None
+    is_scalar = False
+    for entry in loaded_datasets:
+        sys_prop_keys = entry["prop_keys"]
+        data_array = entry["data_as_array"][sys_prop_keys[key]]
+
+        data_shape = np.array(data_array.shape)
+
+        if len(data_shape) < 2:
+
+            if merged_array is None:
+                merged_array = data_array
+                is_scalar = True
+            else:
+                if not is_scalar:
+                    raise RuntimeError(
+                        f"Trying to merge scalar array with non-scalar array for different systems at key {key}"
+                    )
+                else:
+                    merged_array = np.append(merged_array, data_array, axis=0)
+            # raise NotImplementedError("Merging of scalar data not yet implemented")
+        else:
+            if is_scalar:
+                raise RuntimeError(
+                    f"Trying to merge scalar array with non-scalar array for different systems at key {key}"
+                )
+            extension_needed = max_length - data_shape[1]
+
+            if extension_needed > 0:
+                target_shape = data_shape
+                target_shape[1] = extension_needed
+                data_array = np.append(
+                    data_array, np.full(target_shape, fillValue), axis=1
+                )
+
+            if merged_array is None:
+                merged_array = data_array
+            else:
+                merged_array = np.append(merged_array, data_array, axis=0)
+
+    return key, merged_array
+
+
+def merge_system_data_set(loaded_datasets) -> Tuple[int, Dict, Dict]:
+
+    initial_keyset_intersection: None | Set = None
+
+    initial_key_dtype = dict()
+
+    for entry in loaded_datasets:
+        sys_prop_keys = entry["prop_keys"]
+        data_array = entry["data_as_array"]
+
+        available_set = set()
+
+        for key, val in sys_prop_keys.items():
+            if key in data_array:
+                available_set.add(key)
+                initial_key_dtype[key] = data_array[key].dtype
+
+        if initial_keyset_intersection is None:
+            initial_keyset_intersection = available_set
+        else:
+            initial_keyset_intersection = initial_keyset_intersection.intersection(
+                available_set
+            )
+
+    logging.info(
+        f"Keyset intersection across all data sets: {initial_keyset_intersection}"
+    )
+
+    if initial_keyset_intersection is None:
+        raise RuntimeError("No intersection in system keys")
+
+    final_keyset = dict()
+    final_data_arrays = dict()
+    final_n_data = 0
+
+    for shared_key in initial_keyset_intersection:
+        key, merged_array = merge_array_across_systems(
+            shared_key,
+            loaded_datasets,
+            fillValue=get_fill_value_for(initial_key_dtype[shared_key]),
+        )
+        final_keyset[key] = key
+        final_data_arrays[key] = merged_array
+        final_n_data = len(merged_array)
+
+    return final_n_data, final_keyset, final_data_arrays
+
+
+def get_fill_value_for(datatype):
+    if isinstance(datatype, bool):
+        return False
+    elif isinstance(datatype, int):
+        return int(0)
+    elif isinstance(datatype, str):
+        return ""
+    else:
+        return 0.0
 
 
 def adjacency_from_mol(rdkit_mol):
@@ -542,6 +658,10 @@ system_input = get_full_system_list(shnitsel_base_path)
 
 # print(repr(system_input))
 n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
+
+print(n_data_total)
+
+n_data_total, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
 
 print(n_data_total)
 print(repr(loaded_systems))
