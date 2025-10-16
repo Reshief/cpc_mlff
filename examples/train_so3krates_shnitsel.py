@@ -1,3 +1,4 @@
+from typing import Dict, Tuple
 from mlff.cAPI.process_argparse import StoreDictKeyPair
 import numpy as np
 import jax
@@ -32,6 +33,7 @@ import xarray as xr
 from shnitsel.core.parse.common import transform_atom_name_to_number
 import pathlib
 import shnitsel.xarray
+import logging
 
 import argparse
 
@@ -194,6 +196,78 @@ print(f"Opted for {n_heads} attention heads")
 sphc_degrees_array = list(range(1, sphc_degree + 1))
 
 from rdkit import Chem
+import glob
+
+
+def get_full_system_list(data_dir: pathlib.Path):
+    systems = dict()
+    root_dir = data_dir.resolve().as_posix()
+
+    for entry in glob.glob(
+        "./**/*.nc",
+        root_dir=root_dir,
+        recursive=True,
+    ):
+        entry = data_dir / entry
+        if entry.is_file():
+            name_parts = entry.stem.split("_")
+            system_id = name_parts[0]
+            is_static = name_parts[-1] == "static"
+            if system_id not in systems.keys():
+                systems[system_id] = []
+
+            systems[system_id].append(
+                {
+                    "system_id": system_id,
+                    "static": is_static,
+                    "path": entry.resolve().as_posix(),
+                }
+            )
+    return systems
+
+
+def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
+
+    system_ids = sorted(systems_list.keys())
+
+    total_loaded_data = []
+
+    n_data_total = 0
+
+    for id in system_ids:
+        system_files = systems_list[id]
+        system_files = sorted(system_files, key=lambda x: x["path"])
+
+        # print(system_files)
+
+        for entry in system_files:
+            if entry["static"] and not dynamic_only:
+                res = import_shnitsel_static(entry["path"], prop_keys_shnitsel_static)
+                if res is None:
+                    continue
+                n_data, prop_keys, data_arrays, dataset = res
+            elif not entry["static"]:
+                res = import_shnitsel_dynamic(entry["path"], prop_keys_shnitsel_dynamic)
+                if res is None:
+                    continue
+                n_data, prop_keys, data_arrays, dataset = res
+            else:
+                continue
+
+            n_data_total += n_data
+            total_loaded_data.append(
+                {
+                    "system_id": entry["system_id"],
+                    "static": entry["static"],
+                    "path": entry["path"],
+                    "n_data": n_data,
+                    "prop_keys": prop_keys,
+                    "data_as_array": data_arrays,
+                    "dataset": dataset,
+                }
+            )
+
+    return n_data_total, total_loaded_data
 
 
 def adjacency_from_mol(rdkit_mol):
@@ -213,7 +287,11 @@ def adjacency_from_mol(rdkit_mol):
     )
 
 
-def import_shnitsel_dynamic(data_path, prop_keys):
+def import_shnitsel_dynamic(
+    data_path: str,
+    prop_keys,
+) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
+    logging.info(f"Importing trajectory from: {data_path}")
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
@@ -221,12 +299,21 @@ def import_shnitsel_dynamic(data_path, prop_keys):
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
 
+    final_prop_keys = {}
+    final_prop_keys.update(prop_keys)
+
+    varkeys = list(dataset.variables.keys())
+    if E_key not in varkeys or F_key not in varkeys or atom_type_key not in varkeys:
+        logging.warning(
+            f"Trajectory {data_path} is missing one or more of the keys : {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
+        )
+        return None
+
     # Restructure the dimensions into one continuous frame/state dimension
     dataset = dataset.transpose("frame", ...)
     dataset = dataset.reset_index("frame")
     dataset = dataset.stack(data=["frame", "state"])
     dataset = dataset.transpose("data", ...)
-
     # Translate atom types into number representations
     atom_type = dataset.variables[atom_type_key]
     atom_number = transform_atom_name_to_number(atom_type)
@@ -265,16 +352,16 @@ def import_shnitsel_dynamic(data_path, prop_keys):
     dataset = dataset.assign(idx_i=atom_idx_i)
     dataset = dataset.assign(idx_j=atom_idx_j)
     dataset = dataset.assign(node_mask=node_mask)
-    prop_keys[property_names.atomic_type] = "atomic_type"
+    final_prop_keys[property_names.atomic_type] = "atomic_type"
 
     # Make state into a per-atom variable
     molecule_state_array = dataset[prop_keys[property_names.atomic_state]]
     per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
     per_atom_state_array = per_atom_state_array.transpose("data", ...)
     dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
-    prop_keys[property_names.atomic_state] = "atomic_state_tmp"
+    final_prop_keys[property_names.atomic_state] = "atomic_state_tmp"
 
-    print(repr(dataset))
+    # print(repr(dataset))
 
     # print(repr(dataset["state"]))
 
@@ -283,7 +370,7 @@ def import_shnitsel_dynamic(data_path, prop_keys):
 
     rename_keys = dict()
 
-    for key, value in prop_keys.items():
+    for key, value in final_prop_keys.items():
         if value in dataset.variables:
             rename_keys.update(**{value: key})
             data = dataset[value].values
@@ -306,19 +393,31 @@ def import_shnitsel_dynamic(data_path, prop_keys):
     return n_data, property_keys, dataset_arrays, dataset
 
 
-def import_shnitsel_static(data_path, prop_keys):
+def import_shnitsel_static(
+    data_path, prop_keys
+) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
 
+    final_prop_keys = {}
+    final_prop_keys.update(prop_keys)
+
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
+
+    varkeys = list(dataset.variables.keys())
+    if E_key not in varkeys or F_key not in varkeys or atom_type_key not in varkeys:
+        logging.warning(
+            f"Trajectory {data_path} is missing one or more of the keys : {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
+        )
+        return None
 
     symbols = dataset.symbols
     # dataset = dataset.drop_vars("symbols")
     dataset = dataset.assign_coords(atNames=symbols)
     # dataset = dataset.rename_vars({"symbols":"atNames"})
-    print(repr(dataset))
+    # print(repr(dataset))
 
     rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
     idx_i, idx_j = adjacency_from_mol(rdkit_mol)
@@ -326,7 +425,7 @@ def import_shnitsel_static(data_path, prop_keys):
     # TODO: use sh.core.geom.identify_bonds() to get bonds or use rdkit directly to construct adjacency matrix.
 
     # print(repr(dataset.isel(frame=0).atXYZ.sh.to_mol()))
-    print(repr(rdkit_mol))
+    # print(repr(rdkit_mol))
 
     # Restructure the dimensions into one continuous frame/state dimension
     dataset = dataset.transpose("frame", ...)
@@ -369,16 +468,16 @@ def import_shnitsel_static(data_path, prop_keys):
     dataset = dataset.assign(idx_i=atom_idx_i)
     dataset = dataset.assign(idx_j=atom_idx_j)
     dataset = dataset.assign(node_mask=node_mask)
-    prop_keys[property_names.atomic_type] = "atomic_type"
+    final_prop_keys[property_names.atomic_type] = "atomic_type"
 
     # Make state into a per-atom variable
-    molecule_state_array = dataset[prop_keys[property_names.atomic_state]]
+    molecule_state_array = dataset[final_prop_keys[property_names.atomic_state]]
     per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
     per_atom_state_array = per_atom_state_array.transpose("data", ...)
     dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
-    prop_keys[property_names.atomic_state] = "atomic_state_tmp"
+    final_prop_keys[property_names.atomic_state] = "atomic_state_tmp"
 
-    print(repr(dataset))
+    # print(repr(dataset))
 
     # print(repr(dataset["state"]))
 
@@ -387,7 +486,7 @@ def import_shnitsel_static(data_path, prop_keys):
 
     rename_keys = dict()
 
-    for key, value in prop_keys.items():
+    for key, value in final_prop_keys.items():
         if value in dataset.variables:
             rename_keys.update(**{value: key})
             data = dataset[value].values
@@ -423,10 +522,12 @@ save_path = "ckpt_dir"
 
 ckpt_dir = (
     pathlib.Path(args.ckpt_dir)
+    .joinpath(save_path)
     .joinpath(f"module_F{num_features}_deg{sphc_degree}")
     .absolute()
     .resolve()
 ).as_posix()
+
 ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
 if a_prop_keys is not None:
@@ -434,6 +535,17 @@ if a_prop_keys is not None:
 
 data_path = data_static_path
 data_path = data_dynamic_path
+
+shnitsel_base_path = pathlib.Path("./shnitsel_data/")
+
+system_input = get_full_system_list(shnitsel_base_path)
+
+# print(repr(system_input))
+n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
+
+print(n_data_total)
+print(repr(loaded_systems))
+sys.exit(1)
 
 n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_static(
     data_path=data_static_path, prop_keys=prop_keys_shnitsel_static
