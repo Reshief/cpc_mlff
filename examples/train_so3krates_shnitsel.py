@@ -286,11 +286,13 @@ def merge_array_across_systems(
 
     merged_array = None
     is_scalar = False
+    dtype = None
     for entry in loaded_datasets:
         sys_prop_keys = entry["prop_keys"]
         data_array = entry["data_as_array"][sys_prop_keys[key]]
 
         data_shape = np.array(data_array.shape)
+        dtype = data_array.dtype
 
         if len(data_shape) < 2:
 
@@ -316,7 +318,7 @@ def merge_array_across_systems(
                 target_shape = data_shape
                 target_shape[1] = extension_needed
                 data_array = np.append(
-                    data_array, np.full(target_shape, fillValue), axis=1
+                    data_array, np.full(target_shape, fillValue, dtype=dtype), axis=1
                 )
 
             if merged_array is None:
@@ -342,7 +344,7 @@ def merge_system_data_set(loaded_datasets) -> Tuple[int, Dict, Dict]:
         for key, val in sys_prop_keys.items():
             if key in data_array:
                 available_set.add(key)
-                initial_key_dtype[key] = data_array[key].dtype
+                initial_key_dtype[key] = data_array[key].dtype.type
 
         if initial_keyset_intersection is None:
             initial_keyset_intersection = available_set
@@ -363,6 +365,12 @@ def merge_system_data_set(loaded_datasets) -> Tuple[int, Dict, Dict]:
     final_n_data = 0
 
     for shared_key in initial_keyset_intersection:
+        print(
+            "Mapped type:",
+            shared_key,
+            initial_key_dtype[shared_key],
+            get_fill_value_for(initial_key_dtype[shared_key]),
+        )
         key, merged_array = merge_array_across_systems(
             shared_key,
             loaded_datasets,
@@ -375,15 +383,17 @@ def merge_system_data_set(loaded_datasets) -> Tuple[int, Dict, Dict]:
     return final_n_data, final_keyset, final_data_arrays
 
 
-def get_fill_value_for(datatype):
-    if isinstance(datatype, bool):
+def get_fill_value_for(datatype: type):
+    if issubclass(datatype, bool) or issubclass(datatype, np.bool):
         return False
-    elif isinstance(datatype, int):
+    elif issubclass(datatype, int) or issubclass(datatype, np.integer):
         return int(0)
-    elif isinstance(datatype, str):
+    elif issubclass(datatype, str) or issubclass(datatype, np.character):
         return ""
-    else:
+    elif issubclass(datatype, float) or issubclass(datatype, np.floating):
         return 0.0
+    else:
+        raise ValueError(f"No default filling value found for type: {datatype}")
 
 
 def adjacency_from_mol(rdkit_mol):
@@ -515,6 +525,7 @@ def import_shnitsel_static(
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
+    atomic_state_key = prop_keys[property_names.atomic_state]
 
     final_prop_keys = {}
     final_prop_keys.update(prop_keys)
@@ -523,9 +534,14 @@ def import_shnitsel_static(
     dataset: xr.Dataset = sh.open_frames(data_path)
 
     varkeys = list(dataset.variables.keys())
-    if E_key not in varkeys or F_key not in varkeys or atom_type_key not in varkeys:
+    if (
+        E_key not in varkeys
+        or F_key not in varkeys
+        or atom_type_key not in varkeys
+        or atomic_state_key not in varkeys
+    ):
         logging.warning(
-            f"Trajectory {data_path} is missing one or more of the keys : {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
+            f"Trajectory {data_path} is missing one or more of the keys : {atomic_state_key}, {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
         )
         return None
 
@@ -661,19 +677,19 @@ n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
 
 print(n_data_total)
 
-n_data_total, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
+n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
 
-print(n_data_total)
-print(repr(loaded_systems))
-sys.exit(1)
+print(n_data)
+# print(repr(loaded_systems))
+# sys.exit(1)
 
-n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_static(
+"""n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_static(
     data_path=data_static_path, prop_keys=prop_keys_shnitsel_static
 )
 
 n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_dynamic(
     data_path=data_dynamic_path, prop_keys=prop_keys_shnitsel_dynamic
-)
+)"""
 
 prop_keys = prop_keys_final
 
