@@ -547,7 +547,15 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=None,
-        help="Number of training points. Defaults to 1/5 of all data points.",
+        help="Number of training points. Defaults to 3/5 of all data points.",
+    )
+
+    parser.add_argument(
+        "--n_valid",
+        type=int,
+        required=False,
+        default=None,
+        help="Number of validation points. Defaults to 1/5 of all data points.",
     )
 
     parser.add_argument(
@@ -655,6 +663,7 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     n_test = args.n_test
     n_train = args.n_train
+    n_valid = args.n_valid
     # apply_to = args.apply_to
     # from_split = args.from_split
     units = args.units
@@ -728,9 +737,9 @@ if __name__ == "__main__":
 
     prop_keys = prop_keys_final
 
-    num_training = n_train if n_train is not None else int(np.round(n_data * 0.2))
+    num_training = n_train if n_train is not None else int(np.round(n_data * 0.6))
     num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
-    num_valid = int(np.round(n_data * 0.6))
+    num_valid = n_valid if n_valid is not None else int(np.round(n_data * 0.2))
     num_valid = n_data - num_test - num_training
 
     r_cut = n_cut if n_cut is not None else 5
