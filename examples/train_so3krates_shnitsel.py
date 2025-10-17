@@ -423,7 +423,7 @@ def import_shnitsel_static(
     # dataset[E_key] = dataset[E_key]
     # convert data to eV from hartree/bohr used in Shnitsel
     dataset[F_key].values *= si.Bohr / si.Hartree
-    dataset[F_key].assign_attrs(units="eV/m")
+    dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
     atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
