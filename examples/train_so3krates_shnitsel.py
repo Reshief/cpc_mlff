@@ -270,6 +270,30 @@ def import_shnitsel_dynamic(
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
 
+    # print(repr(dataset))
+    # print(repr(dataset[E_key]))
+    # print(repr(dataset[F_key]))
+    print(
+        "Energy (max/median/avg/min)",
+        np.max(dataset[E_key].values),
+        np.median(dataset[E_key].values),
+        np.average(dataset[E_key].values),
+        np.min(dataset[E_key].values),
+    )
+
+    forces_norm = (
+        np.linalg.norm(dataset[F_key].values, axis=2, ord=2) * si.Bohr / si.Hartree
+    )
+    print(
+        "Force (max/median/avg/min)",
+        np.max(forces_norm),
+        np.median(forces_norm),
+        np.average(forces_norm),
+        np.min(forces_norm),
+    )
+    print("Hartree:", si.Hartree)
+    print("Bohr:", si.Bohr)
+
     final_prop_keys = {}
     final_prop_keys.update(prop_keys)
 
@@ -757,7 +781,7 @@ if __name__ == "__main__":
         epochs=n_epochs,
         training_batch_size=batch_size,
         validation_batch_size=batch_size,
-        loss_weights={pn.energy: 0.001, pn.force: 0.999},
+        loss_weights={pn.energy: 1./8., pn.force: 2e3},
         ckpt_dir=ckpt_dir,
         data_path=data_path,
         net_seed=0,
