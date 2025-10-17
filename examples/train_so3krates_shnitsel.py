@@ -207,16 +207,19 @@ def merge_system_data_set(loaded_datasets) -> Tuple[int, Dict, Dict]:
     final_n_data = 0
 
     for shared_key in initial_keyset_intersection:
-        print(
-            "Mapped type:",
-            shared_key,
-            initial_key_dtype[shared_key],
-            get_fill_value_for(initial_key_dtype[shared_key]),
-        )
         key, merged_array = merge_array_across_systems(
             shared_key,
             loaded_datasets,
             fillValue=get_fill_value_for(initial_key_dtype[shared_key]),
+        )
+        print(
+            "Mapped type:",
+            shared_key,
+            "(shape:",
+            merged_array.shape,
+            ")",
+            initial_key_dtype[shared_key],
+            get_fill_value_for(initial_key_dtype[shared_key]),
         )
         final_keyset[key] = key
         final_data_arrays[key] = merged_array
