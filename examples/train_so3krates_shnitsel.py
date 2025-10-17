@@ -77,6 +77,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--n_epochs",
+    type=int,
+    required=False,
+    default=1000,
+    help="Number of training epochs. Default=1000.",
+)
+
+parser.add_argument(
     "--batch_size",
     type=int,
     required=False,
@@ -184,6 +192,7 @@ sphc_degree = args.degree
 num_features = args.features
 n_layers = args.n_layers
 n_heads = args.n_heads
+n_epochs = args.n_epochs
 
 n_heads = max(1, min(num_features, n_heads))
 for candidate in range(n_heads, 0, -1):
@@ -743,7 +752,7 @@ coach = Coach(
         pn.node_mask,
     ],
     targets=[pn.energy, pn.force],
-    epochs=1000,
+    epochs=n_epochs,
     training_batch_size=batch_size,
     validation_batch_size=batch_size,
     loss_weights={pn.energy: 0.001, pn.force: 0.999},
