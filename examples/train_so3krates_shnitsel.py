@@ -37,173 +37,6 @@ import logging
 
 import argparse
 
-# Create the parser
-parser = argparse.ArgumentParser(
-    description="Run a training run on the shnitsel dataset."
-)
-
-# Add the arguments
-parser.add_argument(
-    "--ckpt_dir",
-    type=str,
-    required=False,
-    default=os.getcwd(),
-    help="Path to the checkpoint directory. Defaults to the current directory.",
-)
-
-"""parser.add_argument('--apply_to', type=str, required=False, default=None,
-                  help='Path to data file that the model should be applied to. '
-                        'Defaults to the training data file.')
-
-parser.add_argument('--on', type=str, required=False, default='test',
-                  help='Evaluate the model on the `train`,`valid` or `test` split. Defaults to `test`.')"""
-
-# Arguments that determine the training parameters
-parser.add_argument(
-    "--n_test",
-    type=int,
-    required=False,
-    default=None,
-    help="Number of test points. Defaults to all data points that have been not seen during "
-    "training if model is evaluated on the same data set as it has been trained on.",
-)
-
-parser.add_argument(
-    "--n_train",
-    type=int,
-    required=False,
-    default=None,
-    help="Number of training points. Defaults to 1/5 of all data points.",
-)
-
-parser.add_argument(
-    "--n_epochs",
-    type=int,
-    required=False,
-    default=1000,
-    help="Number of training epochs. Default=1000.",
-)
-
-parser.add_argument(
-    "--batch_size",
-    type=int,
-    required=False,
-    default=5,
-    help="Batch size of the inference passes. Default=5",
-)
-
-parser.add_argument(
-    "--degree",
-    type=int,
-    required=False,
-    default=2,
-    help="Degree of spherical harmonics considered. Default=2",
-)
-
-parser.add_argument(
-    "--features",
-    type=int,
-    required=False,
-    default=32,
-    help="Number of features. Default=32",
-)
-
-parser.add_argument(
-    "--n_layers",
-    type=int,
-    required=False,
-    default=2,
-    help="Number of layers. Default=2",
-)
-
-parser.add_argument(
-    "--n_heads",
-    type=int,
-    required=False,
-    default=2,
-    help="Number of attention heads. May be corrected down to avoid division by zero. Default=2",
-)
-
-# parser.add_argument('--from_split', type=str, required=False, default=None,
-#                  help='The name of the data split. If not specified, all data from the file specified in '
-#                        '`--apply_to` is loaded and used for testing.')
-
-parser.add_argument(
-    "--units",
-    action=StoreDictKeyPair,
-    metavar="KEY1=VAL1,KEY2=VAL2...",
-    default=None,
-    help="Units in the data set for the quantities. Needs only to be specified"
-    "if the model has been trained on units different from the ones present in the data set.",
-)
-
-parser.add_argument(
-    "--prop_keys",
-    action=StoreDictKeyPair,
-    metavar="KEY1=VAL1,KEY2=VAL2...",
-    default=None,
-    help="Property keys of the data set. Needs only to be specified, if e.g. the keys of the "
-    "properties in the data set that the model is applied to differ from the keys the model"
-    "has been trained on.",
-)
-
-parser.add_argument(
-    "--neigh_cut",
-    type=float,
-    required=False,
-    default=None,
-    help="Cutoff used for the calculation of the neighborhood lists. Defaults to the r_cut"
-    "of the NN model.",
-)
-
-parser.add_argument("--targets", nargs="+", required=False, default=None)
-
-"""parser.add_argument(
-    "--jax_dtype",
-    type=str,
-    required=False,
-    default="x32",
-    help="Set JAX default dtype. Default is jax.numpy.float32",
-)"""
-
-"""parser.add_argument(
-    "--save_predictions_to",
-    type=str,
-    required=False,
-    default="predictions.npz",
-    help="Save the predictions and ground truth values to a ckpt_dir/$save_predictions_to.npz.",
-)"""
-
-args = parser.parse_args()
-
-# Read arguments
-ckpt_dir = args.ckpt_dir
-batch_size = args.batch_size
-n_test = args.n_test
-n_train = args.n_train
-# apply_to = args.apply_to
-# from_split = args.from_split
-units = args.units
-a_prop_keys = args.prop_keys
-n_cut = args.neigh_cut
-# _targets = args.targets
-# save_predictions_to = args.save_predictions_to
-sphc_degree = args.degree
-num_features = args.features
-n_layers = args.n_layers
-n_heads = args.n_heads
-n_epochs = args.n_epochs
-
-n_heads = max(1, min(num_features, n_heads))
-for candidate in range(n_heads, 0, -1):
-    if num_features % candidate == 0:
-        n_heads = candidate
-        break
-
-print(f"Opted for {n_heads} attention heads")
-
-sphc_degrees_array = list(range(1, sphc_degree + 1))
-
 from rdkit import Chem
 import glob
 
@@ -650,152 +483,322 @@ def import_shnitsel_static(
     return n_data, property_keys, dataset_arrays, dataset
 
 
-port = portpicker.pick_unused_port()
-jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
+if __name__ == "__main__":
+    # Create the parser
+    parser = argparse.ArgumentParser(
+        description="Run a training run on the shnitsel dataset."
+    )
 
-data_path = "shnitsel_data"
+    # Add the arguments
+    parser.add_argument(
+        "--ckpt_dir",
+        type=str,
+        required=False,
+        default=os.getcwd(),
+        help="Path to the checkpoint directory. Defaults to the current directory.",
+    )
 
+    """parser.add_argument('--apply_to', type=str, required=False, default=None,
+                    help='Path to data file that the model should be applied to. '
+                            'Defaults to the training data file.')
 
-data_dynamic_path = "shnitsel_data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
-data_static_path = "shnitsel_data/I01_43365/I01_ch2nh2_static.nc"
-save_path = "ckpt_dir"
+    parser.add_argument('--on', type=str, required=False, default='test',
+                    help='Evaluate the model on the `train`,`valid` or `test` split. Defaults to `test`.')"""
 
+    # Arguments that determine the training parameters
+    parser.add_argument(
+        "--n_test",
+        type=int,
+        required=False,
+        default=None,
+        help="Number of test points. Defaults to all data points that have been not seen during "
+        "training if model is evaluated on the same data set as it has been trained on.",
+    )
 
-ckpt_dir = (
-    pathlib.Path(args.ckpt_dir)
-    .joinpath(save_path)
-    .joinpath(f"module_F{num_features}_deg{sphc_degree}")
-    .absolute()
-    .resolve()
-).as_posix()
+    parser.add_argument(
+        "--n_train",
+        type=int,
+        required=False,
+        default=None,
+        help="Number of training points. Defaults to 1/5 of all data points.",
+    )
 
-ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
+    parser.add_argument(
+        "--n_epochs",
+        type=int,
+        required=False,
+        default=1000,
+        help="Number of training epochs. Default=1000.",
+    )
 
-if a_prop_keys is not None:
-    prop_keys_shnitsel_dynamic.update(a_prop_keys)
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        required=False,
+        default=5,
+        help="Batch size of the inference passes. Default=5",
+    )
 
-data_path = data_static_path
-data_path = data_dynamic_path
+    parser.add_argument(
+        "--degree",
+        type=int,
+        required=False,
+        default=2,
+        help="Degree of spherical harmonics considered. Default=2",
+    )
 
-shnitsel_base_path = pathlib.Path("./shnitsel_data/")
+    parser.add_argument(
+        "--features",
+        type=int,
+        required=False,
+        default=32,
+        help="Number of features. Default=32",
+    )
 
-system_input = get_full_system_list(shnitsel_base_path)
+    parser.add_argument(
+        "--n_layers",
+        type=int,
+        required=False,
+        default=2,
+        help="Number of layers. Default=2",
+    )
 
-# print(repr(system_input))
-n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
+    parser.add_argument(
+        "--n_heads",
+        type=int,
+        required=False,
+        default=2,
+        help="Number of attention heads. May be corrected down to avoid division by zero. Default=2",
+    )
 
-print(n_data_total)
+    # parser.add_argument('--from_split', type=str, required=False, default=None,
+    #                  help='The name of the data split. If not specified, all data from the file specified in '
+    #                        '`--apply_to` is loaded and used for testing.')
 
-n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
+    parser.add_argument(
+        "--units",
+        action=StoreDictKeyPair,
+        metavar="KEY1=VAL1,KEY2=VAL2...",
+        default=None,
+        help="Units in the data set for the quantities. Needs only to be specified"
+        "if the model has been trained on units different from the ones present in the data set.",
+    )
 
-print(n_data)
-# print(repr(loaded_systems))
-# sys.exit(1)
+    parser.add_argument(
+        "--prop_keys",
+        action=StoreDictKeyPair,
+        metavar="KEY1=VAL1,KEY2=VAL2...",
+        default=None,
+        help="Property keys of the data set. Needs only to be specified, if e.g. the keys of the "
+        "properties in the data set that the model is applied to differ from the keys the model"
+        "has been trained on.",
+    )
 
-"""n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_static(
-    data_path=data_static_path, prop_keys=prop_keys_shnitsel_static
-)
+    parser.add_argument(
+        "--neigh_cut",
+        type=float,
+        required=False,
+        default=None,
+        help="Cutoff used for the calculation of the neighborhood lists. Defaults to the r_cut"
+        "of the NN model.",
+    )
 
-n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_dynamic(
-    data_path=data_dynamic_path, prop_keys=prop_keys_shnitsel_dynamic
-)"""
+    parser.add_argument("--targets", nargs="+", required=False, default=None)
 
-prop_keys = prop_keys_final
+    """parser.add_argument(
+        "--jax_dtype",
+        type=str,
+        required=False,
+        default="x32",
+        help="Set JAX default dtype. Default is jax.numpy.float32",
+    )"""
 
-num_training = n_train if n_train is not None else int(np.round(n_data * 0.2))
-num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
-num_valid = int(np.round(n_data * 0.6))
-num_valid = n_data - num_test - num_training
+    """parser.add_argument(
+        "--save_predictions_to",
+        type=str,
+        required=False,
+        default="predictions.npz",
+        help="Save the predictions and ground truth values to a ckpt_dir/$save_predictions_to.npz.",
+    )"""
 
-r_cut = n_cut if n_cut is not None else 5
-data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
-data_set.random_split(
-    n_train=num_training,
-    n_valid=num_valid,
-    n_test=None,  # num_test,
-    mic=False,
-    r_cut=r_cut,
-    training=True,
-    seed=0,
-)
+    args = parser.parse_args()
 
-data_set.shift_x_by_mean_x(x=pn.energy)
+    # Read arguments
+    ckpt_dir = args.ckpt_dir
+    batch_size = args.batch_size
+    n_test = args.n_test
+    n_train = args.n_train
+    # apply_to = args.apply_to
+    # from_split = args.from_split
+    units = args.units
+    a_prop_keys = args.prop_keys
+    n_cut = args.neigh_cut
+    # _targets = args.targets
+    # save_predictions_to = args.save_predictions_to
+    sphc_degree = args.degree
+    num_features = args.features
+    n_layers = args.n_layers
+    n_heads = args.n_heads
+    n_epochs = args.n_epochs
 
-data_set.save_splits_to_file(ckpt_dir, "splits.json")
-data_set.save_scales(ckpt_dir, "scales.json")
+    n_heads = max(1, min(num_features, n_heads))
+    for candidate in range(n_heads, 0, -1):
+        if num_features % candidate == 0:
+            n_heads = candidate
+            break
 
-d = data_set.get_data_split()
+    print(f"Opted for {n_heads} attention heads")
 
-net = So3krates(
-    F=num_features,
-    n_layer=n_layers,
-    prop_keys=prop_keys,
-    geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
-    so3krates_layer_kwargs={"n_heads": n_heads, "degrees": sphc_degrees_array},
-)
+    sphc_degrees_array = list(range(1, sphc_degree + 1))
 
-obs_fn = get_obs_and_force_fn(net)
-obs_fn = jax.vmap(obs_fn, in_axes=(None, 0))
+    port = portpicker.pick_unused_port()
+    jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
 
-opt = Optimizer()
+    data_path = "shnitsel_data"
 
-tx = opt.get(learning_rate=1e-3)
+    data_dynamic_path = "shnitsel_data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
+    data_static_path = "shnitsel_data/I01_43365/I01_ch2nh2_static.nc"
+    save_path = "ckpt_dir"
 
-coach = Coach(
-    # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
-    inputs=[
-        pn.atomic_position,
-        pn.atomic_type,
-        pn.atomic_state,
-        pn.idx_i,
-        pn.idx_j,
-        pn.node_mask,
-    ],
-    targets=[pn.energy, pn.force],
-    epochs=n_epochs,
-    training_batch_size=batch_size,
-    validation_batch_size=batch_size,
-    loss_weights={pn.energy: 0.001, pn.force: 0.999},
-    ckpt_dir=ckpt_dir,
-    data_path=data_path,
-    net_seed=0,
-    training_seed=0,
-)
+    ckpt_dir = (
+        pathlib.Path(args.ckpt_dir)
+        .joinpath(save_path)
+        .joinpath(f"module_F{num_features}_deg{sphc_degree}")
+        .absolute()
+        .resolve()
+    ).as_posix()
 
-loss_fn = get_loss_fn(obs_fn=obs_fn, weights=coach.loss_weights, prop_keys=prop_keys)
+    ckpt_dir = create_directory(ckpt_dir, exists_ok=False)
 
-data_tuple = DataTuple(inputs=coach.inputs, targets=coach.targets, prop_keys=prop_keys)
+    if a_prop_keys is not None:
+        prop_keys_shnitsel_dynamic.update(a_prop_keys)
 
-train_ds = data_tuple(d["train"])
-valid_ds = data_tuple(d["valid"])
+    data_path = data_static_path
+    data_path = data_dynamic_path
 
-inputs = jax.tree_util.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
-params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
-train_state, h_train_state = create_train_state(
-    net,
-    params,
-    tx,
-    polyak_step_size=None,
-    plateau_lr_decay={"patience": 50, "decay_factor": 1.0},
-    scheduled_lr_decay={
-        "exponential": {"transition_steps": 10_000, "decay_factor": 0.9}
-    },
-)
+    shnitsel_base_path = pathlib.Path("./shnitsel_data/")
 
-h_net = net.__dict_repr__()
-h_opt = opt.__dict_repr__()
-h_coach = coach.__dict_repr__()
-h_dataset = data_set.__dict_repr__()
-h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
-save_dict(path=ckpt_dir, filename="hyperparameters.json", data=h, exists_ok=True)
+    system_input = get_full_system_list(shnitsel_base_path)
 
-wandb.init(config=h)
-coach.run(
-    train_state=train_state,
-    train_ds=train_ds,
-    valid_ds=valid_ds,
-    loss_fn=loss_fn,
-    log_every_t=1,
-    restart_by_nan=True,
-    use_wandb=True,
-)
+    # print(repr(system_input))
+    n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
+
+    print(n_data_total)
+
+    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
+
+    print(n_data)
+    # print(repr(loaded_systems))
+    # sys.exit(1)
+
+    """n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_static(
+        data_path=data_static_path, prop_keys=prop_keys_shnitsel_static
+    )
+
+    n_data, prop_keys_final, dataset_arrays, dataset = import_shnitsel_dynamic(
+        data_path=data_dynamic_path, prop_keys=prop_keys_shnitsel_dynamic
+    )"""
+
+    prop_keys = prop_keys_final
+
+    num_training = n_train if n_train is not None else int(np.round(n_data * 0.2))
+    num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
+    num_valid = int(np.round(n_data * 0.6))
+    num_valid = n_data - num_test - num_training
+
+    r_cut = n_cut if n_cut is not None else 5
+    data_set = DataSet(data=dataset_arrays, prop_keys=prop_keys)
+    data_set.random_split(
+        n_train=num_training,
+        n_valid=num_valid,
+        n_test=None,  # num_test,
+        mic=False,
+        r_cut=r_cut,
+        training=True,
+        seed=0,
+    )
+
+    data_set.shift_x_by_mean_x(x=pn.energy)
+
+    data_set.save_splits_to_file(ckpt_dir, "splits.json")
+    data_set.save_scales(ckpt_dir, "scales.json")
+
+    d = data_set.get_data_split()
+
+    net = So3krates(
+        F=num_features,
+        n_layer=n_layers,
+        prop_keys=prop_keys,
+        geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
+        so3krates_layer_kwargs={"n_heads": n_heads, "degrees": sphc_degrees_array},
+    )
+
+    obs_fn = get_obs_and_force_fn(net)
+    obs_fn = jax.vmap(obs_fn, in_axes=(None, 0))
+
+    opt = Optimizer()
+
+    tx = opt.get(learning_rate=1e-3)
+
+    coach = Coach(
+        # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
+        inputs=[
+            pn.atomic_position,
+            pn.atomic_type,
+            pn.atomic_state,
+            pn.idx_i,
+            pn.idx_j,
+            pn.node_mask,
+        ],
+        targets=[pn.energy, pn.force],
+        epochs=n_epochs,
+        training_batch_size=batch_size,
+        validation_batch_size=batch_size,
+        loss_weights={pn.energy: 0.001, pn.force: 0.999},
+        ckpt_dir=ckpt_dir,
+        data_path=data_path,
+        net_seed=0,
+        training_seed=0,
+    )
+
+    loss_fn = get_loss_fn(
+        obs_fn=obs_fn, weights=coach.loss_weights, prop_keys=prop_keys
+    )
+
+    data_tuple = DataTuple(
+        inputs=coach.inputs, targets=coach.targets, prop_keys=prop_keys
+    )
+
+    train_ds = data_tuple(d["train"])
+    valid_ds = data_tuple(d["valid"])
+
+    inputs = jax.tree_util.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
+    params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
+    train_state, h_train_state = create_train_state(
+        net,
+        params,
+        tx,
+        polyak_step_size=None,
+        plateau_lr_decay={"patience": 50, "decay_factor": 1.0},
+        scheduled_lr_decay={
+            "exponential": {"transition_steps": 10_000, "decay_factor": 0.9}
+        },
+    )
+
+    h_net = net.__dict_repr__()
+    h_opt = opt.__dict_repr__()
+    h_coach = coach.__dict_repr__()
+    h_dataset = data_set.__dict_repr__()
+    h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
+    save_dict(path=ckpt_dir, filename="hyperparameters.json", data=h, exists_ok=True)
+
+    wandb.init(config=h)
+    coach.run(
+        train_state=train_state,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        loss_fn=loss_fn,
+        log_every_t=1,
+        restart_by_nan=True,
+        use_wandb=True,
+    )
