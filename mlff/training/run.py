@@ -188,6 +188,7 @@ def run_training(
 
     registry = ocp.handlers.DefaultCheckpointHandlerRegistry()
     registry.add("state", ocp.args.StandardSave, ocp.StandardCheckpointHandler)
+
     options = ocp.CheckpointManagerOptions(
         best_fn=lambda u: u["loss"],
         best_mode="min",
@@ -201,9 +202,6 @@ def run_training(
         handler_registry=registry,
         options=options,
     ) as mngr:
-        # mngr_state = mngr.restore(mngr.latest_step())
-
-        # state = mngr_state.get("state")
 
         for i in range(1, int(steps_per_epoch * epochs) + 1):
             epoch_start = time.time()
@@ -216,7 +214,7 @@ def run_training(
                 )
                 mngr.save(
                     i - 1,
-                    args=ocp.args.Composite(**{"state": state}),
+                    args=ocp.args.Composite(**{"state": ocp.args.StandardSave(state)}),
                     metrics={"loss": best_valid_metrics["loss"].item()},
                 )
 
@@ -336,7 +334,7 @@ def run_training(
 
                 mngr.save(
                     i - 1,
-                    args=ocp.args.Composite(**{"state": state}),
+                    args=ocp.args.Composite(**{"state": ocp.args.StandardSave(state)}),
                     metrics={"loss": valid_metrics["loss"].item()},
                 )
 
