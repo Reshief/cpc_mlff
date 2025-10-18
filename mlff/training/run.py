@@ -286,7 +286,18 @@ def run_training(
 
                 # TODO: Make sure loading worked correctly with new API
                 # state_dict = mngr.restore(mngr.best_step(), items={'state': None})['state']
-                state_dict = mngr.restore(mngr.best_step()).get("state")
+
+                abstract_state = jax.tree_util.tree_map(
+                    ocp.utils.to_shape_dtype_struct, state
+                )
+
+                # FIXME: TODO: This restoration may be broken in the new orbax API. It has repeatedly failed to restore the state of the previous checkpoint
+                state_dict = mngr.restore(
+                    mngr.best_step(),
+                    args=ocp.args.Composite(
+                        **{"state": ocp.args.StandardRestore(abstract_state)}
+                    ),
+                ).get("state")
 
                 try:
                     (
