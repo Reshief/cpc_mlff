@@ -313,10 +313,19 @@ def import_shnitsel_dynamic(
         return None
 
     # Restructure the dimensions into one continuous frame/state dimension
-    dataset = dataset.transpose("frame", ...)
-    dataset = dataset.reset_index("frame")
-    dataset = dataset.stack(data=["frame", "state"])
-    dataset = dataset.transpose("data", ...)
+
+    lead_dimension = "frame"
+
+    dataset = dataset.transpose(lead_dimension, ...)
+    # dataset = dataset.reset_index("frame")
+
+    if use_only_ground_state:
+        dataset = dataset.sel(state=1)
+    else:
+        dataset = dataset.stack(data=["frame", "state"])
+        dataset = dataset.transpose("data", ...)
+        lead_dimension = "data"
+
     # Translate atom types into number representations
     atom_type = dataset.variables[atom_type_key]
     atom_number = transform_atom_name_to_number(atom_type)
@@ -324,7 +333,7 @@ def import_shnitsel_dynamic(
     rdkit_mol = dataset.isel(data=0).atXYZ.sh.to_mol()
     idx_i, idx_j = adjacency_from_mol(rdkit_mol)
 
-    n_data = dataset.sizes["data"]
+    n_data = dataset.sizes[lead_dimension]
     n_atoms = dataset.sizes["atom"]
 
     # Normalize units
@@ -336,19 +345,20 @@ def import_shnitsel_dynamic(
     dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
-    atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
-    atom_number_array = atom_number_array.transpose("data", ...)
+    atom_number_array = xr.DataArray(
+        atom_number).expand_dims({lead_dimension: n_data})
+    atom_number_array = atom_number_array.transpose(lead_dimension, ...)
 
-    atom_idx_i = idx_i.expand_dims({"data": n_data})
-    atom_idx_i = atom_idx_i.transpose("data", ...)
-    atom_idx_j = idx_j.expand_dims({"data": n_data})
-    atom_idx_j = atom_idx_j.transpose("data", ...)
+    atom_idx_i = idx_i.expand_dims({lead_dimension: n_data})
+    atom_idx_i = atom_idx_i.transpose(lead_dimension, ...)
+    atom_idx_j = idx_j.expand_dims({lead_dimension: n_data})
+    atom_idx_j = atom_idx_j.transpose(lead_dimension, ...)
 
     # Create node masks
     node_mask = xr.DataArray(
         np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
-    ).expand_dims({"data": n_data})
-    node_mask = node_mask.transpose("data", ...)
+    ).expand_dims({lead_dimension: n_data})
+    node_mask = node_mask.transpose(lead_dimension, ...)
 
     # Append new variables to dataset
     dataset = dataset.assign(atomic_type=atom_number_array)
@@ -360,7 +370,7 @@ def import_shnitsel_dynamic(
     # Make state into a per-atom variable
     molecule_state_array = dataset[prop_keys[property_names.atomic_state]]
     per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
-    per_atom_state_array = per_atom_state_array.transpose("data", ...)
+    per_atom_state_array = per_atom_state_array.transpose(lead_dimension, ...)
     dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
     final_prop_keys[property_names.atomic_state] = "atomic_state_tmp"
 
@@ -412,9 +422,6 @@ def import_shnitsel_static(
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
 
-    if use_only_ground_state:
-        dataset = dataset.sel(state=1)
-
     varkeys = list(dataset.variables.keys())
     if (
         E_key not in varkeys
@@ -442,16 +449,24 @@ def import_shnitsel_static(
     # print(repr(rdkit_mol))
 
     # Restructure the dimensions into one continuous frame/state dimension
-    dataset = dataset.transpose("frame", ...)
+
+    lead_dimension = "frame"
+
+    dataset = dataset.transpose(lead_dimension, ...)
     # dataset = dataset.reset_index("frame")
-    dataset = dataset.stack(data=["frame", "state"])
-    dataset = dataset.transpose("data", ...)
+
+    if use_only_ground_state:
+        dataset = dataset.sel(state=1)
+    else:
+        dataset = dataset.stack(data=["frame", "state"])
+        dataset = dataset.transpose("data", ...)
+        lead_dimension = "data"
 
     # Translate atom types into number representations
     atom_type = dataset.variables[atom_type_key]
     atom_number = transform_atom_name_to_number(atom_type)
 
-    n_data = dataset.sizes["data"]
+    n_data = dataset.sizes[lead_dimension]
     n_atoms = dataset.sizes["atom"]
 
     # Normalize units
@@ -463,19 +478,20 @@ def import_shnitsel_static(
     dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
-    atom_number_array = xr.DataArray(atom_number).expand_dims({"data": n_data})
-    atom_number_array = atom_number_array.transpose("data", ...)
+    atom_number_array = xr.DataArray(
+        atom_number).expand_dims({lead_dimension: n_data})
+    atom_number_array = atom_number_array.transpose(lead_dimension, ...)
 
     # Create adjacency matrix
-    atom_idx_i = idx_i.expand_dims({"data": n_data})
-    atom_idx_i = atom_idx_i.transpose("data", ...)
-    atom_idx_j = idx_j.expand_dims({"data": n_data})
-    atom_idx_j = atom_idx_j.transpose("data", ...)
+    atom_idx_i = idx_i.expand_dims({lead_dimension: n_data})
+    atom_idx_i = atom_idx_i.transpose(lead_dimension, ...)
+    atom_idx_j = idx_j.expand_dims({lead_dimension: n_data})
+    atom_idx_j = atom_idx_j.transpose(lead_dimension, ...)
     # Create node masks
     node_mask = xr.DataArray(
         np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
-    ).expand_dims({"data": n_data})
-    node_mask = node_mask.transpose("data", ...)
+    ).expand_dims({lead_dimension: n_data})
+    node_mask = node_mask.transpose(lead_dimension, ...)
 
     # Append new variables to dataset
     dataset = dataset.assign(atomic_type=atom_number_array)
@@ -487,7 +503,7 @@ def import_shnitsel_static(
     # Make state into a per-atom variable
     molecule_state_array = dataset[final_prop_keys[property_names.atomic_state]]
     per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
-    per_atom_state_array = per_atom_state_array.transpose("data", ...)
+    per_atom_state_array = per_atom_state_array.transpose(lead_dimension, ...)
     dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
     final_prop_keys[property_names.atomic_state] = "atomic_state_tmp"
 
