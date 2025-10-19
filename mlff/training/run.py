@@ -294,9 +294,9 @@ def run_training(
                 # FIXME: TODO: This restoration may be broken in the new orbax API. It has repeatedly failed to restore the state of the previous checkpoint
                 state_dict = mngr.restore(
                     mngr.best_step(),
-                    args=ocp.args.Composite(
-                        **{"state": ocp.args.StandardRestore(abstract_state)}
-                    ),
+                    #args=ocp.args.Composite(
+                    #    **{"state": ocp.args.StandardRestore(abstract_state)}
+                    #),
                 ).get("state")
 
                 try:
