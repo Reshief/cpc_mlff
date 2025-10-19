@@ -68,7 +68,7 @@ def get_full_system_list(data_dir: pathlib.Path):
     return systems
 
 
-def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
+def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True, use_only_ground_state=False):
 
     system_ids = sorted(systems_list.keys())
 
@@ -84,12 +84,14 @@ def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
 
         for entry in system_files:
             if entry["static"] and not dynamic_only:
-                res = import_shnitsel_static(entry["path"], prop_keys_shnitsel_static)
+                res = import_shnitsel_static(
+                    entry["path"], prop_keys_shnitsel_static, use_only_ground_state)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
             elif not entry["static"]:
-                res = import_shnitsel_dynamic(entry["path"], prop_keys_shnitsel_dynamic)
+                res = import_shnitsel_dynamic(
+                    entry["path"], prop_keys_shnitsel_dynamic, use_only_ground_state)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
@@ -238,7 +240,8 @@ def get_fill_value_for(datatype: type):
     elif issubclass(datatype, float) or issubclass(datatype, np.floating):
         return 0.0
     else:
-        raise ValueError(f"No default filling value found for type: {datatype}")
+        raise ValueError(
+            f"No default filling value found for type: {datatype}")
 
 
 def adjacency_from_mol(rdkit_mol):
@@ -261,6 +264,7 @@ def adjacency_from_mol(rdkit_mol):
 def import_shnitsel_dynamic(
     data_path: str,
     prop_keys,
+    use_only_ground_state: bool = False
 ) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
     logging.info(f"Importing trajectory from: {data_path}")
     E_key = prop_keys[property_names.energy]
@@ -269,6 +273,9 @@ def import_shnitsel_dynamic(
 
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
+
+    if use_only_ground_state:
+        dataset = dataset.sel(state=1)
 
     # print(repr(dataset))
     # print(repr(dataset[E_key]))
@@ -282,7 +289,8 @@ def import_shnitsel_dynamic(
     )
 
     forces_norm = (
-        np.linalg.norm(dataset[F_key].values, axis=2, ord=2) * si.Bohr / si.Hartree
+        np.linalg.norm(dataset[F_key].values, axis=2,
+                       ord=2) * si.Bohr / si.Hartree
     )
     print(
         "Force (max/median/avg/min)",
@@ -389,7 +397,9 @@ def import_shnitsel_dynamic(
 
 
 def import_shnitsel_static(
-    data_path, prop_keys
+    data_path: str,
+    prop_keys,
+    use_only_ground_state: bool = False
 ) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
@@ -401,6 +411,9 @@ def import_shnitsel_static(
 
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
+
+    if use_only_ground_state:
+        dataset = dataset.sel(state=1)
 
     varkeys = list(dataset.variables.keys())
     if (
@@ -638,6 +651,12 @@ if __name__ == "__main__":
         "of the NN model.",
     )
 
+    parser.add_argument(
+        "--ground_state",
+        action="store_true",
+        help="Only use ground-state data from trajectories.",
+    )
+
     parser.add_argument("--targets", nargs="+", required=False, default=None)
 
     """parser.add_argument(
@@ -677,6 +696,8 @@ if __name__ == "__main__":
     n_heads = args.n_heads
     n_epochs = args.n_epochs
 
+    use_only_ground_state = args.ground_state
+
     n_heads = max(1, min(num_features, n_heads))
     for candidate in range(n_heads, 0, -1):
         if num_features % candidate == 0:
@@ -688,7 +709,8 @@ if __name__ == "__main__":
     sphc_degrees_array = list(range(1, sphc_degree + 1))
 
     port = portpicker.pick_unused_port()
-    jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
+    jax.distributed.initialize(
+        f"localhost:{port}", num_processes=1, process_id=0)
 
     data_path = "shnitsel_data"
 
@@ -717,11 +739,13 @@ if __name__ == "__main__":
     system_input = get_full_system_list(shnitsel_base_path)
 
     # print(repr(system_input))
-    n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
+    n_data_total, loaded_systems = load_system_data(
+        system_input, dynamic_only=True, use_only_ground_state=use_only_ground_state)
 
     print(n_data_total)
 
-    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
+    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(
+        loaded_systems)
 
     print(n_data)
     # print(repr(loaded_systems))
@@ -737,7 +761,8 @@ if __name__ == "__main__":
 
     prop_keys = prop_keys_final
 
-    num_training = n_train if n_train is not None else int(np.round(n_data * 0.6))
+    num_training = n_train if n_train is not None else int(
+        np.round(n_data * 0.6))
     num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
     num_valid = n_valid if n_valid is not None else int(np.round(n_data * 0.2))
     num_valid = n_data - num_test - num_training
@@ -766,7 +791,8 @@ if __name__ == "__main__":
         n_layer=n_layers,
         prop_keys=prop_keys,
         geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
-        so3krates_layer_kwargs={"n_heads": n_heads, "degrees": sphc_degrees_array},
+        so3krates_layer_kwargs={"n_heads": n_heads,
+                                "degrees": sphc_degrees_array},
     )
 
     obs_fn = get_obs_and_force_fn(net)
@@ -808,7 +834,8 @@ if __name__ == "__main__":
     train_ds = data_tuple(d["train"])
     valid_ds = data_tuple(d["valid"])
 
-    inputs = jax.tree_util.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
+    inputs = jax.tree_util.tree_map(
+        lambda x: jnp.array(x[0, ...]), train_ds[0])
     params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
     train_state, h_train_state = create_train_state(
         net,
@@ -826,7 +853,8 @@ if __name__ == "__main__":
     h_coach = coach.__dict_repr__()
     h_dataset = data_set.__dict_repr__()
     h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
-    save_dict(path=ckpt_dir, filename="hyperparameters.json", data=h, exists_ok=True)
+    save_dict(path=ckpt_dir, filename="hyperparameters.json",
+              data=h, exists_ok=True)
 
     wandb.init(config=h)
     coach.run(
