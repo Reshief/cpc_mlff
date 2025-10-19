@@ -796,7 +796,8 @@ if __name__ == "__main__":
         seed=0,
     )
 
-    data_set.shift_x_by_mean_x(x=pn.energy)
+    # TODO: FIXME: Check whether this shift is actually reasonable
+    # data_set.shift_x_by_mean_x(x=pn.energy)
 
     data_set.save_splits_to_file(ckpt_dir, "splits.json")
     data_set.save_scales(ckpt_dir, "scales.json")
@@ -833,7 +834,9 @@ if __name__ == "__main__":
         epochs=n_epochs,
         training_batch_size=batch_size,
         validation_batch_size=batch_size,
-        loss_weights={pn.energy: 1./8., pn.force: 2e3},
+        #TODO: Think about correct relative weight for energy and force
+        #loss_weights={pn.energy: 1./8., pn.force: 2e3},
+        loss_weights={pn.energy: 1, pn.force: 99},
         ckpt_dir=ckpt_dir,
         data_path=data_path,
         net_seed=0,
