@@ -317,11 +317,11 @@ def import_shnitsel_dynamic(
     lead_dimension = "frame"
 
     dataset = dataset.transpose(lead_dimension, ...)
-    # dataset = dataset.reset_index("frame")
 
     if use_only_ground_state:
         dataset = dataset.sel(state=1)
     else:
+        dataset = dataset.reset_index("frame")
         dataset = dataset.stack(data=["frame", "state"])
         dataset = dataset.transpose("data", ...)
         lead_dimension = "data"
@@ -458,6 +458,7 @@ def import_shnitsel_static(
     if use_only_ground_state:
         dataset = dataset.sel(state=1)
     else:
+        dataset = dataset.reset_index("frame")
         dataset = dataset.stack(data=["frame", "state"])
         dataset = dataset.transpose("data", ...)
         lead_dimension = "data"
