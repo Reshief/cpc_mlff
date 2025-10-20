@@ -186,8 +186,8 @@ def run_training(
     # mngr = CheckpointManager(ckpt_dir, {'state': AsyncCheckpointer(PyTreeCheckpointHandler())}, options=options)
     # mngr = CheckpointManager(ckpt_dir, {'state': PyTreeCheckpointer()}, options=options)
 
-    registry = ocp.handlers.DefaultCheckpointHandlerRegistry()
-    registry.add("state", ocp.args.StandardSave, ocp.StandardCheckpointHandler)
+    #registry = ocp.handlers.DefaultCheckpointHandlerRegistry()
+    #registry.add("state", ocp.args.StandardSave, ocp.StandardCheckpointHandler)
 
     options = ocp.CheckpointManagerOptions(
         best_fn=lambda u: u["loss"],
@@ -199,7 +199,7 @@ def run_training(
 
     with ocp.CheckpointManager(
         pathlib.Path(ckpt_dir).resolve(),
-        handler_registry=registry,
+        #handler_registry=registry,
         options=options,
     ) as mngr:
 
@@ -349,7 +349,7 @@ def run_training(
                 mngr.save(
                     i - 1,
                     args=ocp.args.Composite(
-                        state =ocp.args.StandardSave(state)),
+                        state=ocp.args.StandardSave(state)),
                     metrics={"loss": valid_metrics["loss"].item()},
                 )
 
