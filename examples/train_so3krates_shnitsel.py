@@ -884,7 +884,7 @@ if __name__ == "__main__":
         polyak_step_size=None,
         plateau_lr_decay={"patience": 50, "decay_factor": 1.0},
         scheduled_lr_decay={
-            "exponential": {"transition_steps": 10_000, "decay_factor": 0.97}
+            "exponential": {"transition_steps": 10_000, "decay_factor": 0.99}
         },
     )
 
