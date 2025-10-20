@@ -321,6 +321,8 @@ def import_shnitsel_dynamic(
     print(varkeys)
     print(repr(dataset))
     print(dataset["atNames"].values)
+    print(dataset["state"].values)
+    print(dataset["state2"].values)
 
     dataset = dataset.transpose(lead_dimension, ...)
     dataset = dataset.reset_index("frame")
