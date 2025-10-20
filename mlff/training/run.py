@@ -214,7 +214,8 @@ def run_training(
                 )
                 mngr.save(
                     i - 1,
-                    args=ocp.args.Composite(**{"state": ocp.args.StandardSave(state)}),
+                    args=ocp.args.Composite(
+                        state=ocp.args.StandardSave(state)),
                     metrics={"loss": best_valid_metrics["loss"].item()},
                 )
 
@@ -222,7 +223,8 @@ def run_training(
             if step_in_epoch == 0:
                 rng, input_rng = jax.random.split(rng)
                 perms = jax.random.permutation(input_rng, n_train)
-                perms = perms[: steps_per_epoch * train_bs]  # skip incomplete batch
+                # skip incomplete batch
+                perms = perms[: steps_per_epoch * train_bs]
                 perms = perms.reshape((steps_per_epoch, train_bs))
 
             train_batch = jax.tree_util.tree_map(
@@ -280,7 +282,8 @@ def run_training(
                         lambda x: jnp.zeros(x.shape), state.params["record"]
                     )
                     y = jax.tree_util.tree_map(
-                        lambda x: jnp.zeros(x.shape), state.valid_params["record"]
+                        lambda x: jnp.zeros(
+                            x.shape), state.valid_params["record"]
                     )
                     return x, y
 
@@ -294,9 +297,9 @@ def run_training(
                 # FIXME: TODO: This restoration may be broken in the new orbax API. It has repeatedly failed to restore the state of the previous checkpoint
                 state_dict = mngr.restore(
                     mngr.best_step(),
-                    #args=ocp.args.Composite(
-                    #    **{"state": ocp.args.StandardRestore(abstract_state)}
-                    #),
+                    args=ocp.args.Composite(
+                        state=ocp.args.StandardRestore(abstract_state)
+                    ),
                 ).get("state")
 
                 try:
@@ -345,7 +348,8 @@ def run_training(
 
                 mngr.save(
                     i - 1,
-                    args=ocp.args.Composite(**{"state": ocp.args.StandardSave(state)}),
+                    args=ocp.args.Composite(
+                        state =ocp.args.StandardSave(state)),
                     metrics={"loss": valid_metrics["loss"].item()},
                 )
 
@@ -362,7 +366,8 @@ def run_training(
             e_time = epoch_end - epoch_start
             t_time = train_end - train_start
             v_time = (
-                (valid_end - valid_start) / (n_valid // valid_bs) if evaluate else None
+                (valid_end - valid_start) /
+                (n_valid // valid_bs) if evaluate else None
             )
             # divide by number of validation points since we time the evaluation over whole validation set
 
@@ -390,13 +395,15 @@ def run_training(
                     print(train_batch_metrics_np)
 
                 plateau_decay, _, _ = state.reduce_lr_on_plateau_fn(
-                    plateau_count=state.plateau_count, plateau_length=jnp.ones(1)
+                    plateau_count=state.plateau_count, plateau_length=jnp.ones(
+                        1)
                 )
                 schedule_decay = state.lr_decay_fn(state.step - 1)
                 decay = plateau_decay * schedule_decay
 
                 # TODO: this will fail with opt_states that do not follow the default structure of mlff.
-                lr = jax.device_get(state.opt_state[3].hyperparams["step_size"] * decay)
+                lr = jax.device_get(
+                    state.opt_state[3].hyperparams["step_size"] * decay)
 
                 if use_wandb:
                     wandb.log({"Learning rate": abs(lr)}, step=i)
