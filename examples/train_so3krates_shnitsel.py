@@ -316,6 +316,9 @@ def import_shnitsel_dynamic(
 
     lead_dimension = "frame"
 
+    print(varkeys)
+    print(dataset.coordinates())
+
     dataset = dataset.transpose(lead_dimension, ...)
     dataset = dataset.reset_index("frame")
     dataset = dataset.stack(data=["frame", "state"])
