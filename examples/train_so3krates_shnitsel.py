@@ -772,9 +772,9 @@ if __name__ == "__main__":
             print("Filtering key: ", k)
             if v.shape[0] == n_data:
                 v = v[state_filter, ...]
-                filtered_dict.update({k, v})
+                filtered_dict.update({k: v})
             else:
-                filtered_dict.update({k, v})
+                filtered_dict.update({k: v})
         dataset_arrays = filtered_dict
 
     print(n_data)
