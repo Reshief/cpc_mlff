@@ -739,7 +739,7 @@ if __name__ == "__main__":
     ckpt_dir = (
         pathlib.Path(args.ckpt_dir)
         .joinpath(save_path)
-        .joinpath(f"module_F{num_features}_deg{sphc_degree}")
+        .joinpath(f"shnitsel_L{n_layers}_F{num_features}_deg{sphc_degree}")
         .absolute()
         .resolve()
     ).as_posix()
