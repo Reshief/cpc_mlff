@@ -768,14 +768,18 @@ if __name__ == "__main__":
         filtered_dict = {}
         state_filter = np.any(
             dataset_arrays[prop_keys_final[pn.atomic_state]] == 1, axis=1)
+        new_n_data = np.sum(state_filter)
         for k, v in dataset_arrays.items():
-            print("Filtering key: ", k)
             if v.shape[0] == n_data:
                 v = v[state_filter, ...]
                 filtered_dict.update({k: v})
             else:
                 filtered_dict.update({k: v})
         dataset_arrays = filtered_dict
+
+        print(
+            f"Filtered out {new_n_data} ground states of {n_data} frames for training")
+        n_data = new_n_data
 
     print(n_data)
     # print(repr(loaded_systems))
