@@ -233,6 +233,43 @@ class AtomTypeEmbed(BaseSubModule):
                                    'features': self.features,
                                    'prop_keys': self.prop_keys}}
 
+# TODO: Need to choose a better name
+class MolecularStateEmbed(BaseSubModule):
+    features: int
+    prop_keys: Dict
+    num_embeddings: int = 5
+    module_name: str = 'atom_state_embed'
+
+    def setup(self):
+        self.atomic_state_key = self.prop_keys.get('atomic_state')
+
+    @nn.compact
+    def __call__(self, inputs: Dict, *args, **kwargs) -> jnp.ndarray:
+        """
+        Create atomic embeddings based on the atomic state.
+
+        Args:
+            inputs (Dict):
+                z (Array): atomic states, shape: (n)
+                point_mask (Array): Mask for atom-wise operations, shape: (n)
+            *args (Tuple):
+            **kwargs (Dict):
+
+        Returns: Atomic state embeddings, shape: (n,F)
+
+        """
+        state = inputs[self.atomic_state_key]
+        point_mask = inputs['point_mask']
+
+        state = state.astype(jnp.int32)  # shape: (n)
+        return safe_scale(nn.Embed(num_embeddings=self.num_embeddings, features=self.features)(state),
+                          scale=point_mask[:, None])
+
+    def __dict_repr__(self):
+        return {self.module_name: {'num_embeddings': self.num_embeddings,
+                                   'features': self.features,
+                                   'prop_keys': self.prop_keys}}
+
 
 class OneHotEmbed(BaseSubModule):
     prop_keys: Dict

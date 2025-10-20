@@ -9,6 +9,7 @@ import portpicker
 import ase.units as si
 
 from mlff.io.io import create_directory, bundle_dicts, save_dict
+from mlff.nn.embed.embed import AtomTypeEmbed, MolecularStateEmbed
 from mlff.training import Coach, Optimizer, get_loss_fn, create_train_state
 from mlff.data import DataTuple, DataSet
 
@@ -808,6 +809,9 @@ if __name__ == "__main__":
         F=num_features,
         n_layer=n_layers,
         prop_keys=prop_keys,
+        # Add state embedding
+        embeddings=[AtomTypeEmbed(num_embeddings=100, features=num_features, prop_keys=prop_keys), MolecularStateEmbed(
+            num_embeddings=5, features=num_features, prop_keys=prop_keys)],
         geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
         so3krates_layer_kwargs={"n_heads": n_heads,
                                 "degrees": sphc_degrees_array},
@@ -834,8 +838,8 @@ if __name__ == "__main__":
         epochs=n_epochs,
         training_batch_size=batch_size,
         validation_batch_size=batch_size,
-        #TODO: Think about correct relative weight for energy and force
-        #loss_weights={pn.energy: 1./8., pn.force: 2e3},
+        # TODO: Think about correct relative weight for energy and force
+        # loss_weights={pn.energy: 1./8., pn.force: 2e3},
         loss_weights={pn.energy: 1, pn.force: 99},
         ckpt_dir=ckpt_dir,
         data_path=data_path,
