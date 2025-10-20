@@ -767,6 +767,7 @@ if __name__ == "__main__":
         state_filter = np.any(
             dataset_arrays[prop_keys_final[pn.atomic_state]] == 1, axis=1)
         for k, v in dataset_arrays.items():
+            print("Filtering key: ", k)
             if v.shape[0] == n_data:
                 v = v[state_filter, ...]
                 filtered_dict.update({k, v})
