@@ -304,19 +304,19 @@ def run_training(
                     ),
                 ).get("state")
 
-                #print(type(train_state))
-                #print(repr(train_state))
+                restore_params = train_state.params.unfreeze()
+                restore_valid_params = train_state.valid_params.unfreeze()
 
                 try:
                     (
-                        train_state.params["record"],
-                        train_state.valid_params["record"],
+                        restore_params["record"],
+                        restore_valid_params["record"],
                     ) = reset_records()
                 except KeyError:
                     pass
                 state = state.reset_params(
-                    params=FrozenDict(train_state.params),
-                    valid_params=FrozenDict(train_state.valid_params),
+                    params=FrozenDict(restore_params),
+                    valid_params=FrozenDict(restore_valid_params),
                 )
                 opt_state = state.tx.init(state.params)
                 state = state.reset_opt_state(opt_state=opt_state)
