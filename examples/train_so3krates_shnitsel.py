@@ -270,6 +270,7 @@ def import_shnitsel_dynamic(
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
+    atom_state_key = prop_keys[property_names.atomic_state]
 
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
@@ -323,7 +324,7 @@ def import_shnitsel_dynamic(
 
     dataset = dataset.transpose(lead_dimension, ...)
     dataset = dataset.reset_index("frame")
-    dataset = dataset.stack(data=["frame", "state"])
+    dataset = dataset.stack(data=["frame", atom_state_key])
     dataset = dataset.transpose("data", ...)
     lead_dimension = "data"
 
@@ -369,7 +370,7 @@ def import_shnitsel_dynamic(
     final_prop_keys[property_names.atomic_type] = "atomic_type"
 
     # Make state into a per-atom variable
-    molecule_state_array = dataset[prop_keys[property_names.atomic_state]]
+    molecule_state_array = dataset[atom_state_key]
     per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
     per_atom_state_array = per_atom_state_array.transpose(lead_dimension, ...)
     dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
