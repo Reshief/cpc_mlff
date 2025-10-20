@@ -16,6 +16,8 @@ from mlff.io import save_dict
 from mlff.io.checkpoint import __STEP_PREFIX__
 import pathlib
 
+from mlff.training.train_state import CustomTrainState
+
 # logging.basicConfig(level=logging.INFO)
 
 Array = Any
@@ -295,26 +297,26 @@ def run_training(
                 )
 
                 # FIXME: TODO: This restoration may be broken in the new orbax API. It has repeatedly failed to restore the state of the previous checkpoint
-                state_dict = mngr.restore(
+                train_state: CustomTrainState = mngr.restore(
                     mngr.best_step(),
                     args=ocp.args.Composite(
                         state=ocp.args.StandardRestore(abstract_state)
                     ),
                 ).get("state")
 
-                print(type(state_dict))
-                print(repr(state_dict))
+                #print(type(train_state))
+                #print(repr(train_state))
 
                 try:
                     (
-                        state_dict["params"]["record"],
-                        state_dict["valid_params"]["record"],
+                        train_state.params["record"],
+                        train_state.valid_params["record"],
                     ) = reset_records()
                 except KeyError:
                     pass
                 state = state.reset_params(
-                    params=FrozenDict(state_dict["params"]),
-                    valid_params=FrozenDict(state_dict["valid_params"]),
+                    params=FrozenDict(train_state.params),
+                    valid_params=FrozenDict(train_state.valid_params),
                 )
                 opt_state = state.tx.init(state.params)
                 state = state.reset_opt_state(opt_state=opt_state)
