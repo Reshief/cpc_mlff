@@ -304,8 +304,10 @@ def run_training(
                     ),
                 ).get("state")
 
-                restore_params = train_state.params.unfreeze()
-                restore_valid_params = train_state.valid_params.unfreeze()
+                restore_params = train_state.params.unfreeze() if isinstance(
+                    train_state.params, FrozenDict) else train_state.params
+                restore_valid_params = train_state.valid_params.unfreeze()if isinstance(
+                    train_state.valid_params, FrozenDict) else train_state.valid_params
 
                 try:
                     (
