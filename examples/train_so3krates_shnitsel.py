@@ -69,7 +69,7 @@ def get_full_system_list(data_dir: pathlib.Path):
     return systems
 
 
-def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True, use_only_ground_state=False):
+def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
 
     system_ids = sorted(systems_list.keys())
 
@@ -86,13 +86,13 @@ def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True, use_only_
         for entry in system_files:
             if entry["static"] and not dynamic_only:
                 res = import_shnitsel_static(
-                    entry["path"], prop_keys_shnitsel_static, use_only_ground_state)
+                    entry["path"], prop_keys_shnitsel_static,)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
             elif not entry["static"]:
                 res = import_shnitsel_dynamic(
-                    entry["path"], prop_keys_shnitsel_dynamic, use_only_ground_state)
+                    entry["path"], prop_keys_shnitsel_dynamic)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
@@ -265,7 +265,6 @@ def adjacency_from_mol(rdkit_mol):
 def import_shnitsel_dynamic(
     data_path: str,
     prop_keys,
-    use_only_ground_state: bool = False
 ) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
     logging.info(f"Importing trajectory from: {data_path}")
     E_key = prop_keys[property_names.energy]
@@ -318,14 +317,10 @@ def import_shnitsel_dynamic(
     lead_dimension = "frame"
 
     dataset = dataset.transpose(lead_dimension, ...)
-
-    if use_only_ground_state:
-        dataset = dataset.sel(state=1)
-    else:
-        dataset = dataset.reset_index("frame")
-        dataset = dataset.stack(data=["frame", "state"])
-        dataset = dataset.transpose("data", ...)
-        lead_dimension = "data"
+    dataset = dataset.reset_index("frame")
+    dataset = dataset.stack(data=["frame", "state"])
+    dataset = dataset.transpose("data", ...)
+    lead_dimension = "data"
 
     # Translate atom types into number representations
     atom_type = dataset.variables[atom_type_key]
@@ -410,7 +405,6 @@ def import_shnitsel_dynamic(
 def import_shnitsel_static(
     data_path: str,
     prop_keys,
-    use_only_ground_state: bool = False
 ) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
@@ -456,13 +450,10 @@ def import_shnitsel_static(
     dataset = dataset.transpose(lead_dimension, ...)
     # dataset = dataset.reset_index("frame")
 
-    if use_only_ground_state:
-        dataset = dataset.sel(state=1)
-    else:
-        dataset = dataset.reset_index("frame")
-        dataset = dataset.stack(data=["frame", "state"])
-        dataset = dataset.transpose("data", ...)
-        lead_dimension = "data"
+    dataset = dataset.reset_index("frame")
+    dataset = dataset.stack(data=["frame", "state"])
+    dataset = dataset.transpose("data", ...)
+    lead_dimension = "data"
 
     # Translate atom types into number representations
     atom_type = dataset.variables[atom_type_key]
@@ -758,12 +749,24 @@ if __name__ == "__main__":
 
     # print(repr(system_input))
     n_data_total, loaded_systems = load_system_data(
-        system_input, dynamic_only=True, use_only_ground_state=use_only_ground_state)
+        system_input, dynamic_only=True,)
 
     print(n_data_total)
 
     n_data, prop_keys_final, dataset_arrays = merge_system_data_set(
         loaded_systems)
+
+    if use_only_ground_state:
+        filtered_dict = {}
+        state_filter = np.any(
+            dataset_arrays[prop_keys_final[pn.atomic_state]] == 1, axis=1)
+        for k, v in dataset_arrays.items():
+            if v.shape[0] == n_data:
+                v = v[state_filter, ...]
+                filtered_dict.update({k, v})
+            else:
+                filtered_dict.update({k, v})
+        dataset_arrays = filtered_dict
 
     print(n_data)
     # print(repr(loaded_systems))
