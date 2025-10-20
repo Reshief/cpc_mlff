@@ -45,7 +45,7 @@ shnitsel_property_keys_dynamic = {
     force: 'forces',
     atomic_position: 'atXYZ',
     atomic_type: 'atNames',
-    atomic_state: 'state',
+    atomic_state: 'state2',
     total_dipole_moment: 'dip_perm',
     total_dipole_moment_transient: 'dip_trans',
     idx_i: 'idx_i',
