@@ -859,7 +859,12 @@ if __name__ == "__main__":
     p_random_seed = args.random_seed
 
     p_random_seed = p_random_seed if p_random_seed is not None else int.from_bytes(
-        os.urandom(8), 'big')
+        os.urandom(4))
+    max_seed_val = 2**32-1
+    if p_random_seed > max_seed_val:
+        p_random_seed = p_random_seed % max_seed_val
+    elif p_random_seed < 0:
+        p_random_seed = max_seed_val + (p_random_seed % max_seed_val)
 
     use_only_ground_state = args.ground_state
 
