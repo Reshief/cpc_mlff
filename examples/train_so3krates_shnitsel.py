@@ -317,6 +317,8 @@ def import_shnitsel_dynamic(
     # dataset[atom_position_key].assign_attrs(units="angstrom")
     dataset[F_key].values *= si.Bohr / si.Hartree
     dataset[F_key].assign_attrs(units="eV/angstrom")
+    dataset[E_key].assign_attrs(units="eV")
+    dataset[atom_position_key].assign_attrs(units="angstrom")
 
     # print(repr(dataset))
     # print(repr(dataset[E_key]))
