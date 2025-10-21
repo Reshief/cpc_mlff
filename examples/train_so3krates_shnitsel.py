@@ -325,8 +325,9 @@ def import_shnitsel_dynamic(
     print(dataset["state2"].values)
 
     dataset = dataset.transpose(lead_dimension, ...)
-    dataset = dataset.reset_index("frame")
-    dataset = dataset.stack(data=["frame", atom_state_key])
+    if lead_dimension in dataset.indexes or lead_dimension in dataset.xindexes:
+        dataset = dataset.reset_index(lead_dimension)
+    dataset = dataset.stack(data=[lead_dimension, atom_state_key])
     dataset = dataset.transpose("data", ...)
     lead_dimension = "data"
 
@@ -460,8 +461,9 @@ def import_shnitsel_static(
     dataset = dataset.transpose(lead_dimension, ...)
     # dataset = dataset.reset_index("frame")
 
-    dataset = dataset.reset_index("frame")
-    dataset = dataset.stack(data=["frame", "state"])
+    if lead_dimension in dataset.indexes or lead_dimension in dataset.xindexes:
+        dataset = dataset.reset_index(lead_dimension)
+    dataset = dataset.stack(data=[lead_dimension, atomic_state_key])
     dataset = dataset.transpose("data", ...)
     lead_dimension = "data"
 
