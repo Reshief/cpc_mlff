@@ -309,8 +309,8 @@ def import_shnitsel_dynamic(
     # data already in eV
     # dataset[E_key] = dataset[E_key]
     # convert data to eV from hartree/bohr used in Shnitsel
-    # print(dataset[F_key].units)
-    # print(dataset[E_key].units)
+    print(dataset[F_key].units)
+    print(dataset[E_key].units)
     # dataset[E_key].values *= si.Hartree
     # dataset[E_key].assign_attrs(units="eV")
     # dataset[atom_position_key].values *= si.Bohr
@@ -329,9 +329,7 @@ def import_shnitsel_dynamic(
         np.min(dataset[E_key].values),
     )
 
-    forces_norm = (
-        np.linalg.norm(dataset[F_key].values, axis=2, ord=2) * si.Bohr / si.Hartree
-    )
+    forces_norm = np.linalg.norm(dataset[F_key].values, axis=2, ord=2)
     print(
         "Force (max/median/avg/min)",
         np.max(forces_norm),
@@ -339,8 +337,6 @@ def import_shnitsel_dynamic(
         np.average(forces_norm),
         np.min(forces_norm),
     )
-    print("Hartree:", si.Hartree)
-    print("Bohr:", si.Bohr)
 
     final_prop_keys = {}
     final_prop_keys.update(prop_keys)
@@ -356,12 +352,7 @@ def import_shnitsel_dynamic(
 
     lead_dimension = "frame"
 
-    print(data_path)
-    print(varkeys)
-    print(repr(dataset))
-    print(dataset["atNames"].values)
-    print(dataset["state"].values)
-    print(dataset["state2"].values)
+    # print(repr(dataset))
 
     state_size = dataset.coords[atomic_state_key]
     # print("State coord:", repr(state_size.values.shape))
@@ -483,13 +474,32 @@ def import_shnitsel_static(
     # data already in eV
     # dataset[E_key] = dataset[E_key]
     # convert data to eV from hartree/bohr used in Shnitsel
-    # print(dataset[E_key].units)
+    print(dataset[F_key].units)
+    print(dataset[E_key].units)
+    print(dataset[atom_position_key].units)
     dataset[atom_position_key].values *= si.Bohr
     dataset[atom_position_key].assign_attrs(units="angstrom")
     dataset[F_key].values *= si.Bohr / si.Hartree
     dataset[F_key].assign_attrs(units="eV/angstrom")
     dataset[E_key].values *= si.Hartree
     dataset[E_key].assign_attrs(units="eV")
+
+    print(
+        "Energy (max/median/avg/min)",
+        np.max(dataset[E_key].values),
+        np.median(dataset[E_key].values),
+        np.average(dataset[E_key].values),
+        np.min(dataset[E_key].values),
+    )
+
+    forces_norm = np.linalg.norm(dataset[F_key].values, axis=2, ord=2)
+    print(
+        "Force (max/median/avg/min)",
+        np.max(forces_norm),
+        np.median(forces_norm),
+        np.average(forces_norm),
+        np.min(forces_norm),
+    )
 
     symbols = dataset.symbols
     # dataset = dataset.drop_vars("symbols")
