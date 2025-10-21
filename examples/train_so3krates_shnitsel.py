@@ -440,6 +440,8 @@ def import_shnitsel_static(
     symbols = dataset.symbols
     # dataset = dataset.drop_vars("symbols")
     dataset = dataset.assign_coords(atNames=symbols)
+    # Fix text labels and change to numbers
+    dataset = dataset.assign_coords(state=[1, 2, 3])
     # dataset = dataset.rename_vars({"symbols":"atNames"})
     print(repr(dataset))
 
