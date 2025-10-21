@@ -38,6 +38,7 @@ shnitsel_property_keys_static = {
     idx_i: 'idx_i',
     idx_j: 'idx_j',
     node_mask: 'node_mask',
+    pair_mask: 'pair_mask',
     non_adiabatic_couplings: 'nacs',
 }
 
@@ -52,6 +53,7 @@ shnitsel_property_keys_dynamic = {
     idx_i: 'idx_i',
     idx_j: 'idx_j',
     node_mask: 'node_mask',
+    pair_mask: 'pair_mask',
     non_adiabatic_couplings: 'nacs',
 }
 

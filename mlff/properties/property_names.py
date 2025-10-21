@@ -26,3 +26,4 @@ cell_offset = 'cell_offset'
 pbc = 'pbc'
 
 non_adiabatic_couplings = 'nacs'
+pair_mask = 'pair_mask'
