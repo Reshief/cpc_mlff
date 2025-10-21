@@ -441,7 +441,7 @@ def import_shnitsel_static(
     # dataset = dataset.drop_vars("symbols")
     dataset = dataset.assign_coords(atNames=symbols)
     # dataset = dataset.rename_vars({"symbols":"atNames"})
-    # print(repr(dataset))
+    print(repr(dataset))
 
     rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
     idx_i, idx_j = adjacency_from_mol(rdkit_mol)
