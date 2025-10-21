@@ -214,6 +214,21 @@ def run_training(
                 best_valid_metrics, _ = valid_epoch(
                     state, valid_ds, metric_fn, bs=valid_bs
                 )
+
+                valid_batch_metrics_np = jax.device_get(best_valid_metrics)
+
+                if use_wandb:
+                    wandb.log(
+                        {
+                            f"Validation {k}": v
+                            for (k, v) in valid_batch_metrics_np.items()
+                        },
+                        step=i,
+                    )
+                else:
+                    print("Validation metrics: ")
+                    print(valid_batch_metrics_np)
+
                 mngr.save(
                     i - 1,
                     args=ocp.args.Composite(
