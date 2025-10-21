@@ -853,7 +853,8 @@ if __name__ == "__main__":
     p_exonential_decay_factor = args.decay_factor
 
     p_warmup_steps = args.warmup_steps
-    p_warmup_init_value = args.warmup_init_value if args.warmup_init_value is not None else p_learning_rate*0.01
+    p_warmup_init_value = args.warmup_init_value if args.warmup_init_value is not None else (
+        p_learning_rate*0.01)
     has_warmup_options = p_warmup_steps is not None
 
     p_random_seed = args.random_seed
