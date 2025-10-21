@@ -69,7 +69,7 @@ def get_full_system_list(data_dir: pathlib.Path):
     return systems
 
 
-def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
+def load_system_data(systems_list: Dict[str, Dict], use_dynamic_traj=True, use_static_traj=False):
 
     system_ids = sorted(systems_list.keys())
 
@@ -84,13 +84,13 @@ def load_system_data(systems_list: Dict[str, Dict], dynamic_only=True):
         # print(system_files)
 
         for entry in system_files:
-            if entry["static"] and not dynamic_only:
+            if entry["static"] and use_static_traj:
                 res = import_shnitsel_static(
                     entry["path"], prop_keys_shnitsel_static,)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
-            elif not entry["static"]:
+            elif not entry["static"] and use_dynamic_traj:
                 res = import_shnitsel_dynamic(
                     entry["path"], prop_keys_shnitsel_dynamic)
                 if res is None:
@@ -674,6 +674,18 @@ if __name__ == "__main__":
         help="Only use ground-state data from trajectories.",
     )
 
+    parser.add_argument(
+        "--static",
+        action="store_true",
+        help="Use static trajectory data.",
+    )
+
+    parser.add_argument(
+        "--dynamic",
+        action="store_true",
+        help="Use dynamic trajectory data.",
+    )
+
     parser.add_argument("--targets", nargs="+", required=False, default=None)
 
     """parser.add_argument(
@@ -714,6 +726,14 @@ if __name__ == "__main__":
     n_epochs = args.n_epochs
 
     use_only_ground_state = args.ground_state
+
+    use_static = args.static
+    use_dynamic = args.dynamic
+
+    if not use_static and not use_dynamic:
+        logging.error(
+            "Either static or dynamic data loading must be enabled if no input archive is denoted.")
+        sys.exit(1)
 
     n_heads = max(1, min(num_features, n_heads))
     for candidate in range(n_heads, 0, -1):
@@ -757,7 +777,7 @@ if __name__ == "__main__":
 
     # print(repr(system_input))
     n_data_total, loaded_systems = load_system_data(
-        system_input, dynamic_only=True,)
+        system_input, use_dynamic_traj=use_dynamic, use_static_traj=use_static)
 
     print(n_data_total)
 
@@ -856,7 +876,7 @@ if __name__ == "__main__":
         validation_batch_size=batch_size,
         # TODO: Think about correct relative weight for energy and force
         # loss_weights={pn.energy: 1./8., pn.force: 2e3},
-        loss_weights={pn.energy: 1, pn.force: 99},
+        loss_weights={pn.energy: .01, pn.force: .99},
         ckpt_dir=ckpt_dir,
         data_path=data_path,
         net_seed=0,
