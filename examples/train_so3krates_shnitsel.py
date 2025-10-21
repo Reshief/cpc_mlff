@@ -512,7 +512,7 @@ def import_shnitsel_static(
     num_states = state_size.values.shape[0]
     dataset = dataset.assign_coords({"state": np.arange(1, 1 + num_states)})
     # dataset = dataset.rename_vars({"symbols":"atNames"})
-    print(repr(dataset))
+    # print(repr(dataset))
 
     rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
     idx_i, idx_j, pair_mask = adjacency_from_mol(rdkit_mol)
