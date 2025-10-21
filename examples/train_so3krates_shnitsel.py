@@ -121,7 +121,7 @@ def load_system_data(
 def merge_array_across_systems(
     key: str, loaded_datasets, fillValue: Any = 0, repeat_scalars: bool = True
 ):
-
+    logging.info(f"Merging key: <{key}>")
     max_length = 0
     for entry in loaded_datasets:
         sys_prop_keys = entry["prop_keys"]
@@ -131,6 +131,8 @@ def merge_array_across_systems(
             max_length,
             (1 if len(data_array.shape) < 2 else data_array.shape[1]),
         )
+
+    logging.info(f"Max length of  <{key}> is {max_length}")
 
     merged_array = None
     is_scalar = False
