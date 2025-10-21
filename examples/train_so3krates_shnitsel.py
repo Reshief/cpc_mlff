@@ -595,6 +595,10 @@ def import_shnitsel_static(
 
 
 if __name__ == "__main__":
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.DEBUG)
+    
     # Create the parser
     parser = argparse.ArgumentParser(
         description="Run a training run on the shnitsel dataset."
