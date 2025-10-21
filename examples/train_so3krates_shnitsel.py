@@ -248,7 +248,11 @@ def get_fill_value_for(datatype: type):
 
 
 def adjacency_from_mol(rdkit_mol) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
+    # print(repr(rdkit_mol))
+    # print(rdkit_mol.GetNumBonds())
     am = Chem.GetAdjacencyMatrix(rdkit_mol)
+    # print(am)
+    # sys.exit(1)
 
     adj_i = []
     adj_j = []
@@ -276,6 +280,7 @@ def import_shnitsel_dynamic(
     prop_keys,
 ) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
     logging.info(f"Importing trajectory from: {data_path}")
+    atom_position_key = prop_keys[property_names.atomic_position]
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
@@ -284,8 +289,32 @@ def import_shnitsel_dynamic(
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
 
-    if use_only_ground_state:
-        dataset = dataset.sel(state=1)
+    varkeys = list(dataset.variables.keys())
+    if (
+        atom_position_key not in varkeys
+        or E_key not in varkeys
+        or F_key not in varkeys
+        or atom_type_key not in varkeys
+        or atomic_state_key not in varkeys
+    ):
+        logging.warning(
+            f"Trajectory {data_path} is missing one or more of the keys : {atom_position_key}, {atomic_state_key}, {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
+        )
+        return None
+
+    # Normalize units
+
+    # data already in eV
+    # dataset[E_key] = dataset[E_key]
+    # convert data to eV from hartree/bohr used in Shnitsel
+    # print(dataset[F_key].units)
+    # print(dataset[E_key].units)
+    # dataset[E_key].values *= si.Hartree
+    # dataset[E_key].assign_attrs(units="eV")
+    # dataset[atom_position_key].values *= si.Bohr
+    # dataset[atom_position_key].assign_attrs(units="angstrom")
+    dataset[F_key].values *= si.Bohr / si.Hartree
+    dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # print(repr(dataset))
     # print(repr(dataset[E_key]))
@@ -353,14 +382,6 @@ def import_shnitsel_dynamic(
 
     n_data = dataset.sizes[lead_dimension]
     n_atoms = dataset.sizes["atom"]
-
-    # Normalize units
-
-    # data already in eV
-    # dataset[E_key] = dataset[E_key]
-    # convert data to eV from hartree/bohr used in Shnitsel
-    dataset[F_key].values *= si.Bohr / si.Hartree
-    dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
     atom_number_array = xr.DataArray(atom_number).expand_dims({lead_dimension: n_data})
@@ -430,6 +451,7 @@ def import_shnitsel_static(
     data_path: str,
     prop_keys,
 ) -> None | Tuple[int, Dict, Dict, xr.Dataset]:
+    atom_position_key = prop_keys[property_names.atomic_position]
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
@@ -443,15 +465,29 @@ def import_shnitsel_static(
 
     varkeys = list(dataset.variables.keys())
     if (
-        E_key not in varkeys
+        atom_position_key not in varkeys
+        or E_key not in varkeys
         or F_key not in varkeys
         or atom_type_key not in varkeys
         or atomic_state_key not in varkeys
     ):
         logging.warning(
-            f"Trajectory {data_path} is missing one or more of the keys : {atomic_state_key}, {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
+            f"Trajectory {data_path} is missing one or more of the keys : {atom_position_key}, {atomic_state_key}, {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
         )
         return None
+
+    # Normalize units
+
+    # data already in eV
+    # dataset[E_key] = dataset[E_key]
+    # convert data to eV from hartree/bohr used in Shnitsel
+    # print(dataset[E_key].units)
+    dataset[atom_position_key].values *= si.Bohr
+    dataset[atom_position_key].assign_attrs(units="angstrom")
+    dataset[F_key].values *= si.Bohr / si.Hartree
+    dataset[F_key].assign_attrs(units="eV/angstrom")
+    dataset[E_key].values *= si.Hartree
+    dataset[E_key].assign_attrs(units="eV")
 
     symbols = dataset.symbols
     # dataset = dataset.drop_vars("symbols")
@@ -462,7 +498,7 @@ def import_shnitsel_static(
     num_states = state_size.values.shape[0]
     dataset = dataset.assign_coords({"state": np.arange(1, 1 + num_states)})
     # dataset = dataset.rename_vars({"symbols":"atNames"})
-    # print(repr(dataset))
+    print(repr(dataset))
 
     rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
     idx_i, idx_j, pair_mask = adjacency_from_mol(rdkit_mol)
@@ -491,14 +527,6 @@ def import_shnitsel_static(
 
     n_data = dataset.sizes[lead_dimension]
     n_atoms = dataset.sizes["atom"]
-
-    # Normalize units
-
-    # data already in eV
-    # dataset[E_key] = dataset[E_key]
-    # convert data to eV from hartree/bohr used in Shnitsel
-    dataset[F_key].values *= si.Bohr / si.Hartree
-    dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
     atom_number_array = xr.DataArray(atom_number).expand_dims({lead_dimension: n_data})
