@@ -24,3 +24,5 @@ node_mask = 'node_mask'
 unit_cell = 'unit_cell'
 cell_offset = 'cell_offset'
 pbc = 'pbc'
+
+non_adiabatic_couplings = 'nacs'

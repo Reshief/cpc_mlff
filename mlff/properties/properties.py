@@ -37,7 +37,8 @@ shnitsel_property_keys_static = {
     total_dipole_moment_transient: 'dip_trans',
     idx_i: 'idx_i',
     idx_j: 'idx_j',
-    node_mask: 'node_mask'
+    node_mask: 'node_mask',
+    non_adiabatic_couplings: 'nacs',
 }
 
 shnitsel_property_keys_dynamic = {
@@ -50,7 +51,8 @@ shnitsel_property_keys_dynamic = {
     total_dipole_moment_transient: 'dip_trans',
     idx_i: 'idx_i',
     idx_j: 'idx_j',
-    node_mask: 'node_mask'
+    node_mask: 'node_mask',
+    non_adiabatic_couplings: 'nacs',
 }
 
 # 'sdiag', 'astate', 'phases', 'nacs', 'from', 'to', 'state', 'state2', 'atom', 'direction', 'atNames', 'max_ts', 'completed', 'nsteps', 'time', 'trajid'
