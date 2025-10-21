@@ -855,8 +855,8 @@ if __name__ == "__main__":
         )
         n_data = new_n_data
 
-    dataset_arrays[pn.idx_i][not dataset_arrays[pn.pair_mask]] = -1
-    dataset_arrays[pn.idx_j][not dataset_arrays[pn.pair_mask]] = -1
+    dataset_arrays[pn.idx_i][np.invert(dataset_arrays[pn.pair_mask])] = -1
+    dataset_arrays[pn.idx_j][np.invert(dataset_arrays[pn.pair_mask])] = -1
 
     print(n_data)
     # print(repr(loaded_systems))
