@@ -712,7 +712,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-lr",
-        "--learning_rate"
+        "--learning_rate",
         type=float,
         required=False,
         default=1e-3,
@@ -972,7 +972,7 @@ if __name__ == "__main__":
         n_test=None,  # num_test,
         mic=False,
         r_cut=r_cut,
-        training=True, 
+        training=True,
         seed=p_random_seed,
     )
 
