@@ -748,7 +748,7 @@ if __name__ == "__main__":
         type=float,
         required=False,
         default=None,
-        help="Learning rate at start of warmup. Default: None. Will default to 0.01 times the learning rate specified",
+        help="Learning rate multiplier at start of warmup. Default: None. Will default to a factor of 0.01 times (multiplied with the learning rate specified)",
     )
 
     parser.add_argument(
@@ -853,8 +853,7 @@ if __name__ == "__main__":
     p_exonential_decay_factor = args.decay_factor
 
     p_warmup_steps = args.warmup_steps
-    p_warmup_init_value = args.warmup_init_value if args.warmup_init_value is not None else (
-        p_learning_rate*0.01)
+    p_warmup_init_value = args.warmup_init_value if args.warmup_init_value is not None else 0.01
     has_warmup_options = p_warmup_steps is not None
 
     p_random_seed = args.random_seed
@@ -1065,7 +1064,7 @@ if __name__ == "__main__":
         },
         lr_warmup={
             'init_value': p_warmup_init_value,
-            'peak_value': p_learning_rate,
+            'peak_value': 1,
             'warmup_steps': p_warmup_steps,
         } if has_warmup_options else None,
     )
