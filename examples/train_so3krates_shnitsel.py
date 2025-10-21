@@ -908,7 +908,7 @@ if __name__ == "__main__":
     )
 
     # TODO: FIXME: Check whether this shift is actually reasonable
-    # data_set.shift_x_by_mean_x(x=pn.energy)
+    data_set.shift_x_by_mean_x(x=pn.energy)
 
     data_set.save_splits_to_file(ckpt_dir, "splits.json")
     data_set.save_scales(ckpt_dir, "scales.json")
