@@ -908,6 +908,7 @@ if __name__ == "__main__":
     )
 
     # TODO: FIXME: Check whether this shift is actually reasonable
+    # TODO: FIXME: I believe that the per-atom contribution is not actually useful because it does not account for the node mask
     data_set.shift_x_by_mean_x(x=pn.energy)
 
     data_set.save_splits_to_file(ckpt_dir, "splits.json")
