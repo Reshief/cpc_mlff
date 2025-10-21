@@ -95,7 +95,8 @@ def load_system_data(
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
             elif not entry["static"] and use_dynamic_traj:
-                res = import_shnitsel_dynamic(entry["path"], prop_keys_shnitsel_dynamic)
+                res = import_shnitsel_dynamic(
+                    entry["path"], prop_keys_shnitsel_dynamic)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
@@ -246,7 +247,8 @@ def get_fill_value_for(datatype: type):
     elif issubclass(datatype, float) or issubclass(datatype, np.floating):
         return 0.0
     else:
-        raise ValueError(f"No default filling value found for type: {datatype}")
+        raise ValueError(
+            f"No default filling value found for type: {datatype}")
 
 
 def adjacency_from_mol(rdkit_mol) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
@@ -379,7 +381,8 @@ def import_shnitsel_dynamic(
     n_atoms = dataset.sizes["atom"]
 
     # Make atom number array span the entirety of the dataset
-    atom_number_array = xr.DataArray(atom_number).expand_dims({lead_dimension: n_data})
+    atom_number_array = xr.DataArray(
+        atom_number).expand_dims({lead_dimension: n_data})
     atom_number_array = atom_number_array.transpose(lead_dimension, ...)
 
     atom_idx_i = idx_i.expand_dims({lead_dimension: n_data})
@@ -543,7 +546,8 @@ def import_shnitsel_static(
     n_atoms = dataset.sizes["atom"]
 
     # Make atom number array span the entirety of the dataset
-    atom_number_array = xr.DataArray(atom_number).expand_dims({lead_dimension: n_data})
+    atom_number_array = xr.DataArray(
+        atom_number).expand_dims({lead_dimension: n_data})
     atom_number_array = atom_number_array.transpose(lead_dimension, ...)
 
     # Create adjacency matrix
@@ -706,6 +710,55 @@ if __name__ == "__main__":
         help="Number of attention heads. May be corrected down to avoid division by zero. Default=2",
     )
 
+    parser.add_argument(
+        "-lr",
+        "--learning_rate"
+        type=float,
+        required=False,
+        default=1e-3,
+        help="Initial learning rate for exponential decay. Default: 1e-3",
+    )
+
+    parser.add_argument(
+        "--transition_steps",
+        type=int,
+        required=False,
+        default=10_000,
+        help="Number of steps between decay. Default: 10,000",
+    )
+
+    parser.add_argument(
+        "--decay_factor",
+        type=float,
+        required=False,
+        default=0.99,
+        help="Decay factor upon each @p transition_steps steps. Default: 0.99",
+    )
+
+    parser.add_argument(
+        "--warmup_steps",
+        type=int,
+        required=False,
+        default=None,
+        help="Number of steps for initial warmup. Default: None. If set will cause initial warmup",
+    )
+
+    parser.add_argument(
+        "--warmup_init_value",
+        type=float,
+        required=False,
+        default=None,
+        help="Learning rate at start of warmup. Default: None. Will default to 0.01 times the learning rate specified",
+    )
+
+    parser.add_argument(
+        "--random_seed",
+        type=int,
+        required=False,
+        default=None,
+        help="Random seed for initialization and other random operations. Default: generated from time",
+    )
+
     # parser.add_argument('--from_split', type=str, required=False, default=None,
     #                  help='The name of the data split. If not specified, all data from the file specified in '
     #                        '`--apply_to` is loaded and used for testing.')
@@ -795,6 +848,19 @@ if __name__ == "__main__":
     n_heads = args.n_heads
     n_epochs = args.n_epochs
 
+    p_learning_rate = args.learning_rate
+    p_exonential_decay_transition_steps = args.transition_steps
+    p_exonential_decay_factor = args.decay_factor
+
+    p_warmup_steps = args.warmup_steps
+    p_warmup_init_value = args.warmup_init_value if args.warmup_init_value is not None else p_learning_rate*0.01
+    has_warmup_options = p_warmup_steps is not None
+
+    p_random_seed = args.random_seed
+
+    p_random_seed = p_random_seed if p_random_seed is not None else int.from_bytes(
+        os.urandom(8), 'big')
+
     use_only_ground_state = args.ground_state
 
     use_static = args.static
@@ -817,7 +883,8 @@ if __name__ == "__main__":
     sphc_degrees_array = list(range(1, sphc_degree + 1))
 
     port = portpicker.pick_unused_port()
-    jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
+    jax.distributed.initialize(
+        f"localhost:{port}", num_processes=1, process_id=0)
 
     data_path = "shnitsel_data"
 
@@ -852,7 +919,8 @@ if __name__ == "__main__":
 
     print(n_data_total)
 
-    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
+    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(
+        loaded_systems)
 
     if use_only_ground_state:
         filtered_dict = {}
@@ -890,7 +958,8 @@ if __name__ == "__main__":
 
     prop_keys = prop_keys_final
 
-    num_training = n_train if n_train is not None else int(np.round(n_data * 0.6))
+    num_training = n_train if n_train is not None else int(
+        np.round(n_data * 0.6))
     num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
     num_valid = n_valid if n_valid is not None else int(np.round(n_data * 0.2))
     num_valid = n_data - num_test - num_training
@@ -903,8 +972,8 @@ if __name__ == "__main__":
         n_test=None,  # num_test,
         mic=False,
         r_cut=r_cut,
-        training=True,
-        seed=0,
+        training=True, 
+        seed=p_random_seed,
     )
 
     # TODO: FIXME: Check whether this shift is actually reasonable
@@ -930,7 +999,8 @@ if __name__ == "__main__":
             ),
         ],
         geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
-        so3krates_layer_kwargs={"n_heads": n_heads, "degrees": sphc_degrees_array},
+        so3krates_layer_kwargs={"n_heads": n_heads,
+                                "degrees": sphc_degrees_array},
     )
 
     obs_fn = get_obs_and_force_fn(net)
@@ -938,7 +1008,7 @@ if __name__ == "__main__":
 
     opt = Optimizer()
 
-    tx = opt.get(learning_rate=1e-3)
+    tx = opt.get(learning_rate=p_learning_rate)
 
     coach = Coach(
         # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
@@ -974,8 +1044,10 @@ if __name__ == "__main__":
     train_ds = data_tuple(d["train"])
     valid_ds = data_tuple(d["valid"])
 
-    inputs = jax.tree_util.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
+    inputs = jax.tree_util.tree_map(
+        lambda x: jnp.array(x[0, ...]), train_ds[0])
     params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
+
     train_state, h_train_state = create_train_state(
         net,
         params,
@@ -983,8 +1055,13 @@ if __name__ == "__main__":
         polyak_step_size=None,
         plateau_lr_decay={"patience": 50, "decay_factor": 1.0},
         scheduled_lr_decay={
-            "exponential": {"transition_steps": 10_000, "decay_factor": 0.99}
+            "exponential": {"transition_steps": p_exonential_decay_transition_steps, "decay_factor": p_exonential_decay_factor}
         },
+        lr_warmup={
+            'init_value': p_warmup_init_value,
+            'peak_value': p_learning_rate,
+            'warmup_steps': p_warmup_steps,
+        } if has_warmup_options else None,
     )
 
     h_net = net.__dict_repr__()
@@ -992,7 +1069,8 @@ if __name__ == "__main__":
     h_coach = coach.__dict_repr__()
     h_dataset = data_set.__dict_repr__()
     h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
-    save_dict(path=ckpt_dir, filename="hyperparameters.json", data=h, exists_ok=True)
+    save_dict(path=ckpt_dir, filename="hyperparameters.json",
+              data=h, exists_ok=True)
 
     wandb.init(config=h)
     coach.run(
