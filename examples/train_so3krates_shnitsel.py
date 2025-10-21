@@ -247,7 +247,7 @@ def get_fill_value_for(datatype: type):
         raise ValueError(f"No default filling value found for type: {datatype}")
 
 
-def adjacency_from_mol(rdkit_mol):
+def adjacency_from_mol(rdkit_mol) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
     am = Chem.GetAdjacencyMatrix(rdkit_mol)
 
     adj_i = []
@@ -259,8 +259,15 @@ def adjacency_from_mol(rdkit_mol):
                 adj_i.append(i)
                 adj_j.append(j)
 
-    return xr.DataArray(adj_i, dims=("pair_index",), name="idx_i"), xr.DataArray(
-        adj_j, dims=("pair_index",), name="idx_j"
+    num_pairs = len(adj_i)
+    print(f"Found {num_pairs} edges")
+
+    pair_mask = np.full((num_pairs,), True, dtype=np.bool)
+
+    return (
+        xr.DataArray(adj_i, dims=("pair_index",), name="idx_i"),
+        xr.DataArray(adj_j, dims=("pair_index",), name="idx_j"),
+        xr.DataArray(pair_mask, dims=("pair_index",), name="pair_mask"),
     )
 
 
@@ -342,7 +349,7 @@ def import_shnitsel_dynamic(
     atom_number = transform_atom_name_to_number(atom_type)
 
     rdkit_mol = dataset.isel(data=0).atXYZ.sh.to_mol()
-    idx_i, idx_j = adjacency_from_mol(rdkit_mol)
+    idx_i, idx_j, pair_mask = adjacency_from_mol(rdkit_mol)
 
     n_data = dataset.sizes[lead_dimension]
     n_atoms = dataset.sizes["atom"]
@@ -363,6 +370,8 @@ def import_shnitsel_dynamic(
     atom_idx_i = atom_idx_i.transpose(lead_dimension, ...)
     atom_idx_j = idx_j.expand_dims({lead_dimension: n_data})
     atom_idx_j = atom_idx_j.transpose(lead_dimension, ...)
+    atom_pair_mask = pair_mask.expand_dims({lead_dimension: n_data})
+    atom_pair_mask = atom_pair_mask.transpose(lead_dimension, ...)
 
     # Create node masks
     node_mask = xr.DataArray(
@@ -374,6 +383,7 @@ def import_shnitsel_dynamic(
     dataset = dataset.assign(atomic_type=atom_number_array)
     dataset = dataset.assign(idx_i=atom_idx_i)
     dataset = dataset.assign(idx_j=atom_idx_j)
+    dataset = dataset.assign(pair_mask=atom_pair_mask)
     dataset = dataset.assign(node_mask=node_mask)
     final_prop_keys[property_names.atomic_type] = "atomic_type"
 
@@ -455,7 +465,7 @@ def import_shnitsel_static(
     # print(repr(dataset))
 
     rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
-    idx_i, idx_j = adjacency_from_mol(rdkit_mol)
+    idx_i, idx_j, pair_mask = adjacency_from_mol(rdkit_mol)
 
     # TODO: use sh.core.geom.identify_bonds() to get bonds or use rdkit directly to construct adjacency matrix.
 
@@ -499,6 +509,8 @@ def import_shnitsel_static(
     atom_idx_i = atom_idx_i.transpose(lead_dimension, ...)
     atom_idx_j = idx_j.expand_dims({lead_dimension: n_data})
     atom_idx_j = atom_idx_j.transpose(lead_dimension, ...)
+    atom_pair_mask = pair_mask.expand_dims({lead_dimension: n_data})
+    atom_pair_mask = atom_pair_mask.transpose(lead_dimension, ...)
     # Create node masks
     node_mask = xr.DataArray(
         np.full((n_atoms,), True, dtype=bool), dims=("atom",), name="nodes_mask"
@@ -509,6 +521,7 @@ def import_shnitsel_static(
     dataset = dataset.assign(atomic_type=atom_number_array)
     dataset = dataset.assign(idx_i=atom_idx_i)
     dataset = dataset.assign(idx_j=atom_idx_j)
+    dataset = dataset.assign(pair_mask=atom_pair_mask)
     dataset = dataset.assign(node_mask=node_mask)
     final_prop_keys[property_names.atomic_type] = "atomic_type"
 
@@ -813,6 +826,9 @@ if __name__ == "__main__":
             f"Filtered out {new_n_data} ground states of {n_data} frames for training"
         )
         n_data = new_n_data
+
+    dataset_arrays[pn.idx_i][not dataset_arrays[pn.pair_mask]] = -1
+    dataset_arrays[pn.idx_j][not dataset_arrays[pn.pair_mask]] = -1
 
     print(n_data)
     # print(repr(loaded_systems))
