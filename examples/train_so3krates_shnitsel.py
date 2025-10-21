@@ -69,7 +69,9 @@ def get_full_system_list(data_dir: pathlib.Path):
     return systems
 
 
-def load_system_data(systems_list: Dict[str, Dict], use_dynamic_traj=True, use_static_traj=False):
+def load_system_data(
+    systems_list: Dict[str, Dict], use_dynamic_traj=True, use_static_traj=False
+):
 
     system_ids = sorted(systems_list.keys())
 
@@ -86,13 +88,14 @@ def load_system_data(systems_list: Dict[str, Dict], use_dynamic_traj=True, use_s
         for entry in system_files:
             if entry["static"] and use_static_traj:
                 res = import_shnitsel_static(
-                    entry["path"], prop_keys_shnitsel_static,)
+                    entry["path"],
+                    prop_keys_shnitsel_static,
+                )
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
             elif not entry["static"] and use_dynamic_traj:
-                res = import_shnitsel_dynamic(
-                    entry["path"], prop_keys_shnitsel_dynamic)
+                res = import_shnitsel_dynamic(entry["path"], prop_keys_shnitsel_dynamic)
                 if res is None:
                     continue
                 n_data, prop_keys, data_arrays, dataset = res
@@ -241,8 +244,7 @@ def get_fill_value_for(datatype: type):
     elif issubclass(datatype, float) or issubclass(datatype, np.floating):
         return 0.0
     else:
-        raise ValueError(
-            f"No default filling value found for type: {datatype}")
+        raise ValueError(f"No default filling value found for type: {datatype}")
 
 
 def adjacency_from_mol(rdkit_mol):
@@ -270,7 +272,7 @@ def import_shnitsel_dynamic(
     E_key = prop_keys[property_names.energy]
     F_key = prop_keys[property_names.force]
     atom_type_key = prop_keys[property_names.atomic_type]
-    atom_state_key = prop_keys[property_names.atomic_state]
+    atomic_state_key = prop_keys[property_names.atomic_state]
 
     # Load dataset
     dataset: xr.Dataset = sh.open_frames(data_path)
@@ -290,8 +292,7 @@ def import_shnitsel_dynamic(
     )
 
     forces_norm = (
-        np.linalg.norm(dataset[F_key].values, axis=2,
-                       ord=2) * si.Bohr / si.Hartree
+        np.linalg.norm(dataset[F_key].values, axis=2, ord=2) * si.Bohr / si.Hartree
     )
     print(
         "Force (max/median/avg/min)",
@@ -324,10 +325,15 @@ def import_shnitsel_dynamic(
     print(dataset["state"].values)
     print(dataset["state2"].values)
 
+    state_size = dataset.coords[atomic_state_key]
+    # print("State coord:", repr(state_size.values.shape))
+    num_states = state_size.values.shape[0]
+    dataset = dataset.assign_coords({"state": np.arange(1, 1 + num_states)})
+
     dataset = dataset.transpose(lead_dimension, ...)
     if lead_dimension in dataset.indexes or lead_dimension in dataset.xindexes:
         dataset = dataset.reset_index(lead_dimension)
-    dataset = dataset.stack(data=[lead_dimension, atom_state_key])
+    dataset = dataset.stack(data=[lead_dimension, atomic_state_key])
     dataset = dataset.transpose("data", ...)
     lead_dimension = "data"
 
@@ -350,8 +356,7 @@ def import_shnitsel_dynamic(
     dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
-    atom_number_array = xr.DataArray(
-        atom_number).expand_dims({lead_dimension: n_data})
+    atom_number_array = xr.DataArray(atom_number).expand_dims({lead_dimension: n_data})
     atom_number_array = atom_number_array.transpose(lead_dimension, ...)
 
     atom_idx_i = idx_i.expand_dims({lead_dimension: n_data})
@@ -373,7 +378,7 @@ def import_shnitsel_dynamic(
     final_prop_keys[property_names.atomic_type] = "atomic_type"
 
     # Make state into a per-atom variable
-    molecule_state_array = dataset[atom_state_key]
+    molecule_state_array = dataset[atomic_state_key]
     per_atom_state_array = molecule_state_array.expand_dims({"atom": n_atoms})
     per_atom_state_array = per_atom_state_array.transpose(lead_dimension, ...)
     dataset = dataset.assign(atomic_state_tmp=per_atom_state_array)
@@ -442,9 +447,12 @@ def import_shnitsel_static(
     # dataset = dataset.drop_vars("symbols")
     dataset = dataset.assign_coords(atNames=symbols)
     # Fix text labels and change to numbers
-    dataset = dataset.assign_coords(state=[1, 2, 3])
+    state_size = dataset.coords[atomic_state_key]
+    # print("State coord:", repr(state_size.values.shape))
+    num_states = state_size.values.shape[0]
+    dataset = dataset.assign_coords({"state": np.arange(1, 1 + num_states)})
     # dataset = dataset.rename_vars({"symbols":"atNames"})
-    print(repr(dataset))
+    # print(repr(dataset))
 
     rdkit_mol = dataset.isel(frame=0).positions.sh.to_mol()
     idx_i, idx_j = adjacency_from_mol(rdkit_mol)
@@ -483,8 +491,7 @@ def import_shnitsel_static(
     dataset[F_key].assign_attrs(units="eV/angstrom")
 
     # Make atom number array span the entirety of the dataset
-    atom_number_array = xr.DataArray(
-        atom_number).expand_dims({lead_dimension: n_data})
+    atom_number_array = xr.DataArray(atom_number).expand_dims({lead_dimension: n_data})
     atom_number_array = atom_number_array.transpose(lead_dimension, ...)
 
     # Create adjacency matrix
@@ -736,7 +743,8 @@ if __name__ == "__main__":
 
     if not use_static and not use_dynamic:
         logging.error(
-            "Either static or dynamic data loading must be enabled if no input archive is denoted.")
+            "Either static or dynamic data loading must be enabled if no input archive is denoted."
+        )
         sys.exit(1)
 
     n_heads = max(1, min(num_features, n_heads))
@@ -750,8 +758,7 @@ if __name__ == "__main__":
     sphc_degrees_array = list(range(1, sphc_degree + 1))
 
     port = portpicker.pick_unused_port()
-    jax.distributed.initialize(
-        f"localhost:{port}", num_processes=1, process_id=0)
+    jax.distributed.initialize(f"localhost:{port}", num_processes=1, process_id=0)
 
     data_path = "shnitsel_data"
 
@@ -781,17 +788,18 @@ if __name__ == "__main__":
 
     # print(repr(system_input))
     n_data_total, loaded_systems = load_system_data(
-        system_input, use_dynamic_traj=use_dynamic, use_static_traj=use_static)
+        system_input, use_dynamic_traj=use_dynamic, use_static_traj=use_static
+    )
 
     print(n_data_total)
 
-    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(
-        loaded_systems)
+    n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
 
     if use_only_ground_state:
         filtered_dict = {}
         state_filter = np.any(
-            dataset_arrays[prop_keys_final[pn.atomic_state]] == 1, axis=1)
+            dataset_arrays[prop_keys_final[pn.atomic_state]] == 1, axis=1
+        )
         new_n_data = np.sum(state_filter)
         for k, v in dataset_arrays.items():
             if v.shape[0] == n_data:
@@ -802,7 +810,8 @@ if __name__ == "__main__":
         dataset_arrays = filtered_dict
 
         print(
-            f"Filtered out {new_n_data} ground states of {n_data} frames for training")
+            f"Filtered out {new_n_data} ground states of {n_data} frames for training"
+        )
         n_data = new_n_data
 
     print(n_data)
@@ -819,8 +828,7 @@ if __name__ == "__main__":
 
     prop_keys = prop_keys_final
 
-    num_training = n_train if n_train is not None else int(
-        np.round(n_data * 0.6))
+    num_training = n_train if n_train is not None else int(np.round(n_data * 0.6))
     num_test = n_test if n_test is not None else int(np.round(n_data * 0.2))
     num_valid = n_valid if n_valid is not None else int(np.round(n_data * 0.2))
     num_valid = n_data - num_test - num_training
@@ -850,11 +858,16 @@ if __name__ == "__main__":
         n_layer=n_layers,
         prop_keys=prop_keys,
         # Add state embedding
-        embeddings=[AtomTypeEmbed(num_embeddings=100, features=num_features, prop_keys=prop_keys), MolecularStateEmbed(
-            num_embeddings=5, features=num_features, prop_keys=prop_keys)],
+        embeddings=[
+            AtomTypeEmbed(
+                num_embeddings=100, features=num_features, prop_keys=prop_keys
+            ),
+            MolecularStateEmbed(
+                num_embeddings=5, features=num_features, prop_keys=prop_keys
+            ),
+        ],
         geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
-        so3krates_layer_kwargs={"n_heads": n_heads,
-                                "degrees": sphc_degrees_array},
+        so3krates_layer_kwargs={"n_heads": n_heads, "degrees": sphc_degrees_array},
     )
 
     obs_fn = get_obs_and_force_fn(net)
@@ -880,7 +893,7 @@ if __name__ == "__main__":
         validation_batch_size=batch_size,
         # TODO: Think about correct relative weight for energy and force
         # loss_weights={pn.energy: 1./8., pn.force: 2e3},
-        loss_weights={pn.energy: .01, pn.force: .99},
+        loss_weights={pn.energy: 0.01, pn.force: 0.99},
         ckpt_dir=ckpt_dir,
         data_path=data_path,
         net_seed=0,
@@ -898,8 +911,7 @@ if __name__ == "__main__":
     train_ds = data_tuple(d["train"])
     valid_ds = data_tuple(d["valid"])
 
-    inputs = jax.tree_util.tree_map(
-        lambda x: jnp.array(x[0, ...]), train_ds[0])
+    inputs = jax.tree_util.tree_map(lambda x: jnp.array(x[0, ...]), train_ds[0])
     params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
     train_state, h_train_state = create_train_state(
         net,
@@ -917,8 +929,7 @@ if __name__ == "__main__":
     h_coach = coach.__dict_repr__()
     h_dataset = data_set.__dict_repr__()
     h = bundle_dicts([h_net, h_opt, h_coach, h_dataset, h_train_state])
-    save_dict(path=ckpt_dir, filename="hyperparameters.json",
-              data=h, exists_ok=True)
+    save_dict(path=ckpt_dir, filename="hyperparameters.json", data=h, exists_ok=True)
 
     wandb.init(config=h)
     coach.run(
