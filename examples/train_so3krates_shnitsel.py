@@ -863,7 +863,7 @@ if __name__ == "__main__":
                 num_embeddings=100, features=num_features, prop_keys=prop_keys
             ),
             MolecularStateEmbed(
-                num_embeddings=5, features=num_features, prop_keys=prop_keys
+                num_embeddings=20, features=num_features, prop_keys=prop_keys
             ),
         ],
         geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
