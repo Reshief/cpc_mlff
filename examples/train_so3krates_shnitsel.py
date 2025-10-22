@@ -8,8 +8,10 @@ import wandb
 import portpicker
 import ase.units as si
 
-from mlff.io.io import create_directory, bundle_dicts, save_dict
+from mlff.io.checkpoint import load_params_from_ckpt_dir
+from mlff.io.io import create_directory, bundle_dicts, read_json, save_dict
 from mlff.nn.embed.embed import AtomTypeEmbed, MolecularStateEmbed
+from mlff.nn.stacknet.stacknet import init_stack_net
 from mlff.training import Coach, Optimizer, get_loss_fn, create_train_state
 from mlff.data import DataTuple, DataSet
 
@@ -629,6 +631,14 @@ if __name__ == "__main__":
         help="Path to the checkpoint directory. Defaults to the current directory.",
     )
 
+    parser.add_argument(
+        "--continue_from",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to a checkpoint directory from which to load the overall model state.",
+    )
+
     """parser.add_argument('--apply_to', type=str, required=False, default=None,
                     help='Path to data file that the model should be applied to. '
                             'Defaults to the training data file.')
@@ -848,6 +858,9 @@ if __name__ == "__main__":
     n_heads = args.n_heads
     n_epochs = args.n_epochs
 
+    continue_from_path = pathlib.Path(args.continue_from).resolve().as_posix()
+    is_loaded_initial_state = continue_from_path is not None
+
     p_learning_rate = args.learning_rate
     p_exonential_decay_transition_steps = args.transition_steps
     p_exonential_decay_factor = args.decay_factor
@@ -891,8 +904,6 @@ if __name__ == "__main__":
     jax.distributed.initialize(
         f"localhost:{port}", num_processes=1, process_id=0)
 
-    data_path = "shnitsel_data"
-
     data_dynamic_path = "shnitsel_data/I01_43365/I01_ch2nh2_0p50fs_dynamic.nc"
     data_static_path = "shnitsel_data/I01_43365/I01_ch2nh2_static.nc"
     save_path = "ckpt_dir"
@@ -910,8 +921,7 @@ if __name__ == "__main__":
     if a_prop_keys is not None:
         prop_keys_shnitsel_dynamic.update(a_prop_keys)
 
-    data_path = data_static_path
-    data_path = data_dynamic_path
+    data_path = "./shnitsel_data/"
 
     shnitsel_base_path = pathlib.Path("./shnitsel_data/")
 
@@ -981,77 +991,151 @@ if __name__ == "__main__":
         seed=p_random_seed,
     )
 
-    # TODO: FIXME: Check whether this shift is actually reasonable
-    # TODO: FIXME: I believe that the per-atom contribution is not actually useful because it does not account for the node mask
-    data_set.shift_x_by_mean_x(x=pn.energy)
-
     data_set.save_splits_to_file(ckpt_dir, "splits.json")
-    data_set.save_scales(ckpt_dir, "scales.json")
-
+    opt = Optimizer()
+    tx = opt.get(learning_rate=p_learning_rate)
     d = data_set.get_data_split()
 
-    net = So3krates(
-        F=num_features,
-        n_layer=n_layers,
-        prop_keys=prop_keys,
-        # Add state embedding
-        embeddings=[
-            AtomTypeEmbed(
-                num_embeddings=100, features=num_features, prop_keys=prop_keys
-            ),
-            MolecularStateEmbed(
-                num_embeddings=20, features=num_features, prop_keys=prop_keys
-            ),
-        ],
-        geometry_embed_kwargs={"degrees": sphc_degrees_array, "r_cut": r_cut},
-        so3krates_layer_kwargs={"n_heads": n_heads,
-                                "degrees": sphc_degrees_array},
-    )
+    if not is_loaded_initial_state:
+        # TODO: FIXME: Check whether this shift is actually reasonable
+        # TODO: FIXME: I believe that the per-atom contribution is not actually useful because it does not account for the node mask
+        data_set.shift_x_by_mean_x(x=pn.energy)
+        data_set.save_scales(ckpt_dir, "scales.json")
+
+        net = So3krates(
+            F=num_features,
+            n_layer=n_layers,
+            prop_keys=prop_keys,
+            # Add state embedding
+            embeddings=[
+                AtomTypeEmbed(
+                    num_embeddings=100, features=num_features, prop_keys=prop_keys
+                ),
+                MolecularStateEmbed(
+                    num_embeddings=20, features=num_features, prop_keys=prop_keys
+                ),
+            ],
+            geometry_embed_kwargs={
+                "degrees": sphc_degrees_array, "r_cut": r_cut},
+            so3krates_layer_kwargs={"n_heads": n_heads,
+                                    "degrees": sphc_degrees_array},
+        )
+
+        coach = Coach(
+            # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
+            inputs=[
+                pn.atomic_position,
+                pn.atomic_type,
+                pn.atomic_state,
+                pn.idx_i,
+                pn.idx_j,
+                pn.node_mask,
+            ],
+            targets=[pn.energy, pn.force],
+            epochs=n_epochs,
+            training_batch_size=batch_size,
+            validation_batch_size=batch_size,
+            # TODO: Think about correct relative weight for energy and force
+            # loss_weights={pn.energy: 1./8., pn.force: 2e3},
+            loss_weights={pn.energy: 0.01, pn.force: 0.99},
+            ckpt_dir=ckpt_dir,
+            data_path=data_path,
+            net_seed=p_random_seed,
+            training_seed=p_random_seed,
+        )
+
+        data_tuple = DataTuple(
+            inputs=coach.inputs, targets=coach.targets, prop_keys=prop_keys
+        )
+
+        train_ds = data_tuple(d["train"])
+
+        inputs = jax.tree_util.tree_map(
+            lambda x: jnp.array(x[0, ...]), train_ds[0])
+        params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
+    else:
+        logging.info(f"Continue from state at {continue_from_path}")
+        net = None
+        params = None
+        coach = None
+
+        h = read_json(os.path.join(continue_from_path, "hyperparameters.json"))
+
+        # Loading coach configuration from checkpoint to modify for new parameters
+        old_coach = Coach(**h["coach"])
+
+        targets = old_coach.targets
+
+        # updated configurable parameters of coach
+        old_coach.epochs = n_epochs
+        old_coach.training_batch_size = batch_size
+        old_coach.validation_batch_size = batch_size
+        old_coach.ckpt_dir = ckpt_dir
+        old_coach.data_path = data_path
+        old_coach.net_seed = p_random_seed
+        old_coach.training_seed = p_random_seed
+
+        coach = old_coach
+
+        # Initializing the net from stored hyper parameters
+        old_net = init_stack_net(h)
+        _prop_keys = old_net.prop_keys
+        if prop_keys is not None:
+            _prop_keys.update(prop_keys)
+            old_net.reset_prop_keys(prop_keys=_prop_keys)
+        prop_keys = old_net.prop_keys
+
+        net = old_net
+
+        data_tuple = DataTuple(
+            inputs=coach.inputs, targets=coach.targets, prop_keys=prop_keys
+        )
+
+        train_ds = data_tuple(d["train"])
+
+        # Extract cut parameters of the model from checkpoint
+        r_cut = [
+            x[list(x.keys())[0]]["r_cut"]
+            for x in h["stack_net"]["geometry_embeddings"]
+            if list(x.keys())[0] == "geometry_embed"
+        ][0]
+
+        mic = [
+            x[list(x.keys())[0]]["mic"]
+            for x in h["stack_net"]["geometry_embeddings"]
+            if list(x.keys())[0] == "geometry_embed"
+        ][0]
+
+        if n_cut is not None:
+            r_cut = n_cut
+            if n_cut < r_cut:
+                logging.warning(
+                    f"The specified cutoff for neighborhood calculations n_cut={n_cut} is smaller than the "
+                    f"model cutoff r_cut={r_cut}. This will likely result in wrong model prediction."
+                )
+
+        # Load old net parameters for initialization
+        old_params = load_params_from_ckpt_dir(ckpt_dir)
+        params = old_params
+
+        # Deal with scaling applied in original network
+        scales = read_json(os.path.join(ckpt_dir, "scales.json"))
+
+        # TODO: FIXME: Deal with the weird offset and scaling system of So3krates
+        p_e_offset = scales[pn.energy]["per_atom_shift"][1]
+
+        # Apply old shift to new dataset and store to ckpt directory
+        data_set.shift_x_by_offset(x=pn.energy, offset=p_e_offset)
+        data_set.save_scales(ckpt_dir, "scales.json")
+
+    valid_ds = data_tuple(d["valid"])
 
     obs_fn = get_obs_and_force_fn(net)
     obs_fn = jax.vmap(obs_fn, in_axes=(None, 0))
 
-    opt = Optimizer()
-
-    tx = opt.get(learning_rate=p_learning_rate)
-
-    coach = Coach(
-        # inputs=[pn.atomic_position, pn.atomic_type, pn.atomic_state, pn.idx_i, pn.idx_j, pn.node_mask],
-        inputs=[
-            pn.atomic_position,
-            pn.atomic_type,
-            pn.atomic_state,
-            pn.idx_i,
-            pn.idx_j,
-            pn.node_mask,
-        ],
-        targets=[pn.energy, pn.force],
-        epochs=n_epochs,
-        training_batch_size=batch_size,
-        validation_batch_size=batch_size,
-        # TODO: Think about correct relative weight for energy and force
-        # loss_weights={pn.energy: 1./8., pn.force: 2e3},
-        loss_weights={pn.energy: 0.01, pn.force: 0.99},
-        ckpt_dir=ckpt_dir,
-        data_path=data_path,
-        net_seed=0,
-        training_seed=0,
-    )
-
     loss_fn = get_loss_fn(
         obs_fn=obs_fn, weights=coach.loss_weights, prop_keys=prop_keys
     )
-
-    data_tuple = DataTuple(
-        inputs=coach.inputs, targets=coach.targets, prop_keys=prop_keys
-    )
-
-    train_ds = data_tuple(d["train"])
-    valid_ds = data_tuple(d["valid"])
-
-    inputs = jax.tree_util.tree_map(
-        lambda x: jnp.array(x[0, ...]), train_ds[0])
-    params = net.init(jax.random.PRNGKey(coach.net_seed), inputs)
 
     train_state, h_train_state = create_train_state(
         net,
