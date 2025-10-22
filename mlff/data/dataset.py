@@ -65,7 +65,8 @@ class DataSet:
                 print(
                     "Detected missing data dimension (0-th axis) for {}. Assume that the "
                     "data dimension is missing and repeat the entry {} times. Reshaped "
-                    "array to ({}, {})".format(name, n_data, n_data, y.shape[0])
+                    "array to ({}, {})".format(
+                        name, n_data, n_data, y.shape[0])
                 )
                 return np.repeat(y, repeats=repeats, axis=0)
             elif 1 < len(y) < n_data:
@@ -83,18 +84,21 @@ class DataSet:
         }, n_data
 
     def _init_scales(self):
+        # TODO: FIXME: The per atom shift should not have a fixed number of entries.
         return {
             k: {"per_atom_shift": [0.0] * 100, "scale": 1.0}
             for k in self.prop_keys.keys()
         }
 
     def save_scales(self, path, filename="scales.json"):
-        save_dict(path=path, filename=filename, data=self.scales, exists_ok=True)
+        save_dict(path=path, filename=filename,
+                  data=self.scales, exists_ok=True)
 
     def neighborhood_list(self, r_cut):
         R_key = self.prop_keys[pn.atomic_position]
         z_key = self.prop_keys[pn.atomic_type]
-        neigh_idx = get_indices(R=self.data[R_key], z=self.data[z_key], r_cut=r_cut)
+        neigh_idx = get_indices(
+            R=self.data[R_key], z=self.data[z_key], r_cut=r_cut)
         return neigh_idx
 
     def average_number_of_neighbors(self) -> float:
@@ -145,7 +149,8 @@ class DataSet:
         d = {}
 
         for i, i_n in zip(
-            [data_idx_train, data_idx_valid, data_idx_test], ["train", "valid", "test"]
+            [data_idx_train, data_idx_valid, data_idx_test], [
+                "train", "valid", "test"]
         ):
             _d = {}
             for k, v in self.data.items():
@@ -211,7 +216,8 @@ class DataSet:
                     [d["train"][pbc_key], d["valid"][pbc_key], d["test"][pbc_key]]
                 )
 
-                cell_lengths = np.linalg.norm(unit_cell_dat, axis=-1).reshape(-1)
+                cell_lengths = np.linalg.norm(
+                    unit_cell_dat, axis=-1).reshape(-1)
                 if 0.5 * min(cell_lengths) <= r_cut:
                     # raise NotImplementedError(f'Minimal image convention currently only implemented for '
                     #                           f'r_cut < 0.5*min(cell_lengths), but r_cut={r_cut} and '
@@ -240,10 +246,12 @@ class DataSet:
             n_valid = len(data_idx_valid)
 
             idx_i_train, idx_i_valid, idx_i_test = np.split(
-                neigh_idxs["idx_i"], indices_or_sections=[n_train, n_train + n_valid]
+                neigh_idxs["idx_i"], indices_or_sections=[
+                    n_train, n_train + n_valid]
             )
             idx_j_train, idx_j_valid, idx_j_test = np.split(
-                neigh_idxs["idx_j"], indices_or_sections=[n_train, n_train + n_valid]
+                neigh_idxs["idx_j"], indices_or_sections=[
+                    n_train, n_train + n_valid]
             )
 
             if mic:
@@ -372,7 +380,8 @@ class DataSet:
             idx_valid, idx_train = np.split(idx, indices_or_sections=[n_valid])
 
         # set sorts the indices, so we have to permute them again
-        idx_test = np.array(list(set(idx_all) - set(idx_train) - set(idx_valid)))
+        idx_test = np.array(
+            list(set(idx_all) - set(idx_train) - set(idx_valid)))
         test_perm = random_sate.permutation(len(idx_test))
         idx_test = idx_test[test_perm][
             :n_test
@@ -394,10 +403,11 @@ class DataSet:
         return idx_train, idx_valid, idx_test
 
     def shift_x_by_mean_x(self, x):
+        # TODO: FIXME: Fix the entire offset and scaling system
         n_atoms = self.data[self.prop_keys[pn.atomic_type]].shape[-1]
         if x in self.track_shift_x_by_mean_x:
             logging.warning(
-                f"You already called `shift_x_by_mean` for `x={x}`. It is not shifted again."
+                f"You already called `shift_x_by_mean` or `shift_x_by_offset` for `x={x}`. It is not shifted again."
             )
         else:
             p_key = self.prop_keys[x]
@@ -405,7 +415,25 @@ class DataSet:
             self.data_split["train"][p_key] -= p_mean
             self.data_split["valid"][p_key] -= p_mean
             self.data_split["test"][p_key] -= p_mean
+            # FIXME: This works for energy by not actually using the number of atoms but n_atoms=1 
+            # I don't think this is a good idea for all other observables
             self.scales[x]["per_atom_shift"] = [0] + [p_mean / n_atoms] * 100
+            self.track_shift_x_by_mean_x += [x]
+
+    def shift_x_by_offset(self, x, offset):
+        n_atoms = self.data[self.prop_keys[pn.atomic_type]].shape[-1]
+        if x in self.track_shift_x_by_mean_x:
+            logging.warning(
+                f"You already called `shift_x_by_mean` or `shift_x_by_offset` for `x={x}`. It is not shifted again."
+            )
+        else:
+            p_key = self.prop_keys[x]
+            p_offset = offset
+            self.data_split["train"][p_key] -= p_offset
+            self.data_split["valid"][p_key] -= p_offset
+            self.data_split["test"][p_key] -= p_offset
+            # TODO: FIXME: Deal with the size of this array being fixed and not dependent on our input parameters
+            self.scales[x]["per_atom_shift"] = [0] + [p_offset / n_atoms] * 100
             self.track_shift_x_by_mean_x += [x]
 
     def divide_x_by_std_y(self, x, y):
@@ -496,7 +524,8 @@ class DataSet:
         self, file, r_cut, split_name, mic=None, n_train=None, n_valid=None, n_test=None
     ):
         path, filename = os.path.split(file)
-        split_idx = self.load_splits_from_file(path=path, filename=filename)[split_name]
+        split_idx = self.load_splits_from_file(
+            path=path, filename=filename)[split_name]
         key_2_n = {
             "data_idx_train": n_train,
             "data_idx_valid": n_valid,
@@ -531,7 +560,7 @@ class DataSet:
 def tree_map_by_key(fn, x, keys):
     x_flat = flatten_dict(x)
     apply_mask = unflatten_dict({p: (p[-1] in keys) for p in x_flat})
-    msk_fn = lambda y, m: fn(y) if m else y
+    def msk_fn(y, m): return fn(y) if m else y
     return jax.tree_util.tree_map(msk_fn, x, apply_mask)
 
 
