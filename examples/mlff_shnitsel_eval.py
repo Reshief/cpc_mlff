@@ -170,6 +170,24 @@ def evaluate():
         help="Save the predictions and ground truth values to a ckpt_dir/$save_predictions_to.npz.",
     )
 
+    parser.add_argument(
+        "--ground_state",
+        action="store_true",
+        help="Only use ground-state data from trajectories.",
+    )
+
+    parser.add_argument(
+        "--static",
+        action="store_true",
+        help="Use static trajectory data.",
+    )
+
+    parser.add_argument(
+        "--dynamic",
+        action="store_true",
+        help="Use dynamic trajectory data.",
+    )
+
     args = parser.parse_args()
 
     # Read arguments
@@ -185,6 +203,17 @@ def evaluate():
     save_predictions_to = args.save_predictions_to
 
     evaluate_on = args.on
+
+    use_only_ground_state = args.ground_state
+
+    use_static = args.static
+    use_dynamic = args.dynamic
+
+    if not use_static and not use_dynamic:
+        logging.error(
+            "Either static or dynamic data loading must be enabled if no input archive is denoted."
+        )
+        sys.exit(1)
 
     jax_dtype = args.jax_dtype
     if jax_dtype == "x64":
@@ -309,13 +338,35 @@ def evaluate():
         system_input = get_full_system_list(shnitsel_base_path)
 
         # print(repr(system_input))
-        n_data_total, loaded_systems = load_system_data(system_input, dynamic_only=True)
+        n_data_total, loaded_systems = load_system_data(
+            system_input, use_dynamic_traj=use_dynamic, use_static_traj=use_static
+        )
 
         print(n_data_total)
 
         n_data, prop_keys_final, dataset_arrays = merge_system_data_set(loaded_systems)
 
-        print(n_data)
+        if use_only_ground_state:
+            filtered_dict = {}
+            state_filter = np.any(
+                dataset_arrays[prop_keys_final[pn.atomic_state]] == 1, axis=1
+            )
+            new_n_data = np.sum(state_filter)
+            for k, v in dataset_arrays.items():
+                if v.shape[0] == n_data:
+                    v = v[state_filter, ...]
+                    filtered_dict.update({k: v})
+                else:
+                    filtered_dict.update({k: v})
+            dataset_arrays = filtered_dict
+
+            print(
+                f"Filtered out {new_n_data} ground states of {n_data} frames for training"
+            )
+            n_data = new_n_data
+
+        dataset_arrays[pn.idx_i][np.invert(dataset_arrays[pn.pair_mask])] = -1
+        dataset_arrays[pn.idx_j][np.invert(dataset_arrays[pn.pair_mask])] = -1
         # print(repr(loaded_systems))
         # sys.exit(1)
 
