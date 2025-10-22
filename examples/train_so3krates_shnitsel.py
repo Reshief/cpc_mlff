@@ -1115,11 +1115,11 @@ if __name__ == "__main__":
                 )
 
         # Load old net parameters for initialization
-        old_params = load_params_from_ckpt_dir(ckpt_dir)
+        old_params = load_params_from_ckpt_dir(continue_from_path)
         params = old_params
 
         # Deal with scaling applied in original network
-        scales = read_json(os.path.join(ckpt_dir, "scales.json"))
+        scales = read_json(os.path.join(continue_from_path, "scales.json"))
 
         # TODO: FIXME: Deal with the weird offset and scaling system of So3krates
         p_e_offset = scales[pn.energy]["per_atom_shift"][1]
