@@ -858,7 +858,8 @@ if __name__ == "__main__":
     n_heads = args.n_heads
     n_epochs = args.n_epochs
 
-    continue_from_path = pathlib.Path(args.continue_from).resolve().as_posix()
+    continue_from_path = pathlib.Path(args.continue_from).resolve(
+    ).as_posix() if continue_from_path is not None else None
     is_loaded_initial_state = continue_from_path is not None
 
     p_learning_rate = args.learning_rate
