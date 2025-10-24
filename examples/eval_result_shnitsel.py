@@ -121,36 +121,55 @@ if __name__ == "__main__":
     # test_ids = splits["data_idx_test"]
     plt.clf()
 
-    plt.scatter(
+    fig, (ax_energy, ax_force) = plt.subplots(1, 2)
+
+    ax_energy.scatter(
         targets["energy"],
         predictions["energy"],
         rasterized=True,
         color=color_mol,
     )
-    plt.xlabel("$E_{target}$ [eV]")
-    plt.ylabel("$E_{predict}$ [eV]")
-    plt.tight_layout()
-    plt.savefig(inference_path + "_energy_mae.pdf")
-    plt.clf()
+
+    max_e = max(np.max(
+        targets["energy"]),
+        np.max(predictions["energy"]))
+
+    min_e = min(np.min(
+        targets["energy"]),
+        np.min(predictions["energy"]))
+
+    ax_energy.plot([min_e, max_e], [min_e, max_e], color="grey", ls="dashed")
+
+    ax_energy.xlabel("$E_{target}$ [eV]")
+    ax_energy.ylabel("$E_{predict}$ [eV]")
 
     target_force = targets["force"]
     predictions_force = predictions["force"]
-    print(target_force.shape)
-    print(predictions_force.shape)
+
     target_force_norm = np.linalg.norm(target_force, axis=2, ord=2).reshape(-1)
     predictions_force_norm = np.linalg.norm(predictions_force, axis=2, ord=2).reshape(
         -1
     )
-    print(target_force_norm.shape)
-    print(predictions_force_norm.shape)
 
-    plt.scatter(
+    ax_force.scatter(
         target_force_norm,
         predictions_force_norm,
         rasterized=True,
         color=color_atom,
     )
-    plt.xlabel("$|F_{target}|$ [?]")
-    plt.ylabel("$|F_{predict}|$ [?]")
-    plt.tight_layout()
-    plt.savefig(inference_path + "_force_mae.pdf")
+
+    max_f = max(np.max(
+        target_force_norm),
+        np.max(predictions_force_norm))
+
+    min_f = min(np.min(
+        target_force_norm),
+        np.min(predictions_force_norm))
+
+    ax_force.plot([min_f, max_f], [min_f, max_f], color="grey", ls="dashed")
+
+    ax_force.xlabel("$|F_{target}|$ [?]")
+    ax_force.ylabel("$|F_{predict}|$ [?]")
+
+    fig.tight_layout()
+    fig.savefig(inference_path + "_target_relation.pdf")
