@@ -308,13 +308,17 @@ def import_shnitsel_dynamic(
         )
         return None
 
+    # Restructure the dimensions into one continuous frame/state dimension
+
+    lead_dimension = "frame"
+
     # Normalize units
 
     # data already in eV
     # dataset[E_key] = dataset[E_key]
     # convert data to eV from hartree/bohr used in Shnitsel
     print(dataset[F_key].units)
-    print(dataset[E_key].units)
+    print(dataset[E_key].units, dataset[E_key].values.shape)
     # dataset[E_key].values *= si.Hartree
     # dataset[E_key].assign_attrs(units="eV")
     # dataset[atom_position_key].values *= si.Bohr
@@ -346,17 +350,6 @@ def import_shnitsel_dynamic(
 
     final_prop_keys = {}
     final_prop_keys.update(prop_keys)
-
-    varkeys = list(dataset.variables.keys())
-    if E_key not in varkeys or F_key not in varkeys or atom_type_key not in varkeys:
-        logging.warning(
-            f"Trajectory {data_path} is missing one or more of the keys : {atom_type_key}, {E_key}, {F_key}. It has keys <<{varkeys}>>. The trajectory will be skipped."
-        )
-        return None
-
-    # Restructure the dimensions into one continuous frame/state dimension
-
-    lead_dimension = "frame"
 
     # print(repr(dataset))
 
