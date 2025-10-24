@@ -317,7 +317,7 @@ def import_shnitsel_dynamic(
     # data already in eV
     # dataset[E_key] = dataset[E_key]
     # convert data to eV from hartree/bohr used in Shnitsel
-    print(dataset[F_key].units)
+    print(dataset[F_key].units, dataset[E_key].values.shape)
     print(dataset[E_key].units, dataset[E_key].values.shape)
     # dataset[E_key].values *= si.Hartree
     # dataset[E_key].assign_attrs(units="eV")
