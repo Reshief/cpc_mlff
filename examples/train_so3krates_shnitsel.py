@@ -328,9 +328,10 @@ def import_shnitsel_dynamic(
     dataset[E_key].assign_attrs(units="eV")
     dataset[atom_position_key].assign_attrs(units="angstrom")
 
-    # print(repr(dataset))
-    # print(repr(dataset[E_key]))
-    # print(repr(dataset[F_key]))
+    print(repr(dataset))
+    print(repr(dataset[E_key]))
+    print(repr(dataset[F_key]))
+    sys.exit(1)
     print(
         "Energy (max/median/avg/min)",
         np.max(dataset[E_key].values),
