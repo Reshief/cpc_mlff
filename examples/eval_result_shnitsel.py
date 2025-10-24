@@ -58,13 +58,13 @@ if __name__ == "__main__":
     )
 
     # Add the arguments
-    parser.add_argument(
-        "--ckpt_dir",
-        type=str,
-        required=True,
-        default=os.getcwd(),
-        help="Path to the checkpoint directory.",
-    )
+    # parser.add_argument(
+    #    "--ckpt_dir",
+    #    type=str,
+    #    required=True,
+    #    default=os.getcwd(),
+    #    help="Path to the checkpoint directory.",
+    # )
 
     # Add the arguments
     parser.add_argument(
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Read arguments
-    #ckpt_dir = args.ckpt_dir
+    # ckpt_dir = args.ckpt_dir
     inference_path = args.inference_path
     units = args.units
 
@@ -109,16 +109,16 @@ if __name__ == "__main__":
     # print(type(targets))
     # print(predictions)
     # print(type(predictions))
-    #import json
+    # import json
 
-    #with open(ckpt_dir + "/splits.json", "r") as splitin:
-        #splits = json.load(splitin)["split"]
-        # print(list(splits.keys()))
-        # print(len(splits["data_idx_train"]))
-        # print(len(splits["data_idx_valid"]))
-        # print(len(splits["data_idx_test"]))
+    # with open(ckpt_dir + "/splits.json", "r") as splitin:
+    # splits = json.load(splitin)["split"]
+    # print(list(splits.keys()))
+    # print(len(splits["data_idx_train"]))
+    # print(len(splits["data_idx_valid"]))
+    # print(len(splits["data_idx_test"]))
 
-        #test_ids = splits["data_idx_test"]
+    # test_ids = splits["data_idx_test"]
     plt.clf()
 
     plt.scatter(
