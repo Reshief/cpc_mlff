@@ -59,6 +59,7 @@ class DataSet:
             key=jax.tree_util.tree_map(lambda y: len(y), q_data).get,
         )
         n_data = len(q_data[max_key])
+        print(f"Found {n_data} data points for key {max_key}")
 
         def repeat(name, y, repeats):
             if len(y) == 1:
@@ -415,7 +416,7 @@ class DataSet:
             self.data_split["train"][p_key] -= p_mean
             self.data_split["valid"][p_key] -= p_mean
             self.data_split["test"][p_key] -= p_mean
-            # FIXME: This works for energy by not actually using the number of atoms but n_atoms=1 
+            # FIXME: This works for energy by not actually using the number of atoms but n_atoms=1
             # I don't think this is a good idea for all other observables
             self.scales[x]["per_atom_shift"] = [0] + [p_mean / n_atoms] * 100
             self.track_shift_x_by_mean_x += [x]
