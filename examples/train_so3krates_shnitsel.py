@@ -947,8 +947,10 @@ if __name__ == "__main__":
         for k, v in dataset_arrays.items():
             if v.shape[0] == n_data:
                 v = v[state_filter, ...]
+                print("Filtered out key: ", k, "(new shape: ", v.shape, ")")
                 filtered_dict.update({k: v})
             else:
+                logging.warning("Did not filter out key: ", k)
                 filtered_dict.update({k: v})
         dataset_arrays = filtered_dict
 
