@@ -140,8 +140,8 @@ if __name__ == "__main__":
 
     ax_energy.plot([min_e, max_e], [min_e, max_e], color="grey", ls="dashed")
 
-    ax_energy.xlabel("$E_{target}$ [eV]")
-    ax_energy.ylabel("$E_{predict}$ [eV]")
+    ax_energy.set_xlabel("$E_{target}$ [eV]")
+    ax_energy.set_ylabel("$E_{predict}$ [eV]")
 
     target_force = targets["force"]
     predictions_force = predictions["force"]
@@ -168,8 +168,8 @@ if __name__ == "__main__":
 
     ax_force.plot([min_f, max_f], [min_f, max_f], color="grey", ls="dashed")
 
-    ax_force.xlabel("$|F_{target}|$ [?]")
-    ax_force.ylabel("$|F_{predict}|$ [?]")
+    ax_force.set_xlabel("$|F_{target}|$ [?]")
+    ax_force.set_ylabel("$|F_{predict}|$ [?]")
 
     fig.tight_layout()
     fig.savefig(inference_path + "_target_relation.pdf")
